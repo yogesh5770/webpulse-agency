@@ -1,0 +1,32 @@
+services:
+  - type: web
+    name: lead-website-automation
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python app.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+      # Required -- set actual values in the Render dashboard (Environment tab).
+      - key: AGENTROUTER_BASE_URL
+        sync: false
+      - key: AGENTROUTER_API_KEY
+        sync: false
+      - key: GOOGLE_PLACES_API_KEY
+        sync: false
+      # Publishing provider (default: cloudflare). Set NETLIFY_AUTH_TOKEN instead
+      # and change DEPLOY_PROVIDER to "netlify" if you'd rather use Netlify.
+      - key: DEPLOY_PROVIDER
+        value: cloudflare
+      - key: CLOUDFLARE_API_TOKEN
+        sync: false
+      - key: CLOUDFLARE_ACCOUNT_ID
+        sync: false
+      - key: CLOUDFLARE_PAGES_PROJECT
+        value: lead-sites
+      # Optional -- set a Postgres URL (Supabase/Neon/Railway free tier) so lead
+      # history and generated site files survive restarts/deploys. Leave unset
+      # to fall back to the local SQLite file (ephemeral on Render's free plan).
+      - key: DATABASE_URL
+        sync: false

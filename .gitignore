@@ -7,3 +7,4 @@ sites/
 .vercel/
 .vercelignore
 vercel.json
+huggingface_upload/

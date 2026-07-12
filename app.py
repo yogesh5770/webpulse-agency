@@ -96,7 +96,7 @@ _IDE_IFRAME = """
 </p>
 """
 
-with gr.Blocks(title="Lead → Website Automation") as demo:
+with gr.Blocks(title="Lead → Website Automation") as ui:
     gr.Markdown("# 🏭 Lead → Website Automation\nFinds businesses with no website, builds one with Opus, publishes to Netlify, drafts WhatsApp outreach.")
 
     with gr.Tab("Dashboard"):
@@ -132,15 +132,19 @@ with gr.Blocks(title="Lead → Website Automation") as demo:
 
 app = FastAPI(title="Lead → Website Automation")
 register_ide_routes(app)              # /ide and /ide/api/* — must be before mount
-app = gr.mount_gradio_app(app, demo, path="/")
+app = gr.mount_gradio_app(app, ui, path="/")
 
 
-# Hugging Face (free Gradio SDK) runs this file with `python app.py`, so the
-# __main__ block below starts the server on the port HF proxies (7860). This
-# serves BOTH the Gradio dashboard (/) and the Monaco IDE routes (/ide) on the
-# free tier -- no paid Docker Space needed.
+# The host platform (Render, or Hugging Face's free Gradio SDK) runs this
+# file with `python app.py`, so the __main__ block below starts the server on
+# the port the platform expects. This serves BOTH the Gradio dashboard (/)
+# and the Monaco IDE routes (/ide) on a single server -- no separate process
+# needed. Render sets $PORT dynamically; HF Spaces expects the fixed 7860.
+# Single server for the whole app. We intentionally name the Blocks object `ui`
+# (not `demo`/`app`) so Hugging Face's Gradio auto-launcher does NOT start a
+# second server -- our uvicorn below is the only one.
 if __name__ == "__main__":
     import os
     import uvicorn
-    port = int(os.environ.get("PORT") or os.environ.get("GRADIO_SERVER_PORT") or 7860)
+    port = int(os.environ.get("PORT", 7860))
     uvicorn.run(app, host="0.0.0.0", port=port)

@@ -7,7 +7,7 @@ sdk: gradio
 sdk_version: 5.9.0
 app_file: app.py
 pinned: false
-short_description: Finds leads, builds sites with Opus, publishes, drafts outreach
+short_description: Finds leads, builds AI sites, publishes, drafts outreach
 ---
 
 # 🏭 Lead → Website Automation

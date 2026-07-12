@@ -20,20 +20,51 @@ _FALLBACK_NICHES = [
     "tattoo studio", "yoga studio", "florist", "photography studio",
 ]
 
+# Major cities/towns across India, so the offline fallback (and the AI hint)
+# spread lead discovery nationwide instead of one city. Kept broad on purpose.
+# --- Tamil Nadu, comprehensively (home market -> cover it FULLY) ---
+_TN_CITIES = [
+    "Chennai", "Coimbatore", "Madurai", "Tiruchirappalli", "Salem",
+    "Tirunelveli", "Tiruppur", "Erode", "Vellore", "Thoothukudi",
+    "Dindigul", "Thanjavur", "Ranipet", "Sivakasi", "Karur", "Hosur",
+    "Nagercoil", "Kanchipuram", "Kumbakonam", "Cuddalore", "Tiruvannamalai",
+    "Pollachi", "Rajapalayam", "Pudukkottai", "Neyveli", "Nagapattinam",
+    "Viluppuram", "Tiruchengode", "Vaniyambadi", "Theni", "Namakkal",
+    "Krishnagiri", "Dharmapuri", "Virudhunagar", "Ramanathapuram",
+    "Sivaganga", "Ooty", "Kovilpatti", "Arakkonam", "Gudiyatham",
+]
+
+# --- The rest of India (metros + tier-2) -> cover the country too ---
+_REST_INDIA_CITIES = [
+    "Mumbai", "Delhi", "Bengaluru", "Hyderabad", "Kolkata", "Pune",
+    "Ahmedabad", "Jaipur", "Surat", "Lucknow", "Kanpur", "Nagpur", "Indore",
+    "Bhopal", "Kochi", "Visakhapatnam", "Patna", "Vadodara", "Ludhiana",
+    "Agra", "Nashik", "Varanasi", "Rajkot", "Amritsar", "Chandigarh",
+    "Guwahati", "Thiruvananthapuram", "Mysuru", "Mangaluru", "Vijayawada",
+    "Bhubaneswar", "Dehradun", "Jodhpur", "Raipur", "Ranchi", "Gwalior",
+    "Jabalpur", "Aurangabad", "Noida", "Gurugram", "Faridabad", "Ghaziabad",
+    "Meerut", "Kozhikode", "Warangal", "Guntur", "Jalandhar", "Udaipur",
+]
+
+# Tamil Nadu first (priority), then the rest of India.
+_INDIA_CITIES = _TN_CITIES + _REST_INDIA_CITIES
+
 
 def _used_queries() -> set[str]:
     return {q.lower() for q in db.get_used_queries()}
 
 
 def _fallback_query(used: set[str]) -> str:
-    """Deterministic rotation across niches in the configured region."""
-    region = config.LEAD_REGION.split(",")[0].strip() or "Chennai"
+    """Deterministic rotation of (niche x city) ACROSS INDIA, so discovery
+    keeps finding new businesses nationwide even without the AI generator.
+    Iterates city-major so we spread across the country quickly."""
     for niche in _FALLBACK_NICHES:
-        q = f"{niche} in {region}"
-        if q.lower() not in used:
-            return q
-    # Everything used at least once -> allow reuse (region likely exhausted).
-    return f"{_FALLBACK_NICHES[0]} in {region}"
+        for city in _INDIA_CITIES:
+            q = f"{niche} in {city}"
+            if q.lower() not in used:
+                return q
+    # Everything used at least once -> allow reuse (whole grid exhausted).
+    return f"{_FALLBACK_NICHES[0]} in {_INDIA_CITIES[0]}"
 
 
 def next_query() -> str:
