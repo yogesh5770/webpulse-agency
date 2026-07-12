@@ -1,0 +1,9 @@
+gradio>=5.9.0
+requests>=2.32.3
+python-dotenv>=1.0.1
+fastapi>=0.110.0
+uvicorn>=0.29.0
+# optional: better Cloudflare Pages asset dedup (REST deploy path)
+blake3>=0.4.1
+# needed only when DATABASE_URL (Postgres) is set
+psycopg2-binary>=2.9.9
