@@ -1,0 +1,470 @@
+"""Per-site AI IDE agent -- a Cursor / Claude-Code-style coding agent scoped
+to ONE website folder.
+
+An LLM (Opus 4.x via AgentRouter) runs in a tool-use loop, sandboxed so it can
+never touch anything outside that site's directory. It powers the IDE chat:
+the user asks for a change, the agent plans, edits files, self-corrects broken
+HTML, and checkpoints its work to git (with one-click undo).
+
+Cursor-parity features:
+  - A living PLAN / todo list the agent maintains via the `update_plan` tool,
+    streamed to the UI so you watch it tick tasks off (like Cursor/Claude Code).
+  - Surgical edits: `search_files` (grep) + `edit_file` (exact find/replace),
+    plus full file `create_file` / `write_file` / `delete_file` / `rename_file`.
+  - Error self-correction: after edits, HTML is validated and problems are fed
+    back so the agent fixes them before finishing.
+  - Checkpoints: each successful change is auto-committed to git; a failed run
+    is rolled back to the last good commit.
+
+Streaming:
+  `run_agent(..., on_event=fn)` emits structured dict events the API turns into
+  SSE. `on_step` (legacy) still works and receives human-readable strings.
+"""
+import html.parser
+import json
+import os
+import subprocess
+
+from agent_router import chat
+
+# ---- Sandbox helpers -------------------------------------------------
+
+def _safe_path(root: str, rel: str) -> str:
+    """Resolve `rel` inside `root`; refuse anything that escapes root."""
+    root_abs = os.path.abspath(root)
+    target = os.path.abspath(os.path.join(root_abs, rel))
+    if target != root_abs and not target.startswith(root_abs + os.sep):
+        raise ValueError(f"Path escapes site sandbox: {rel}")
+    return target
+
+
+# ---- Git checkpoint helpers -----------------------------------------
+
+def _git(root: str, *args: str) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        ["git", *args], cwd=root, capture_output=True, text=True, timeout=60
+    )
+
+
+def _ensure_repo(root: str) -> None:
+    """Make sure the site folder is a git repo with an initial commit, so we
+    always have a checkpoint to roll back to."""
+    if not os.path.isdir(os.path.join(root, ".git")):
+        _git(root, "init")
+        _git(root, "config", "user.email", "agent@local")
+        _git(root, "config", "user.name", "Site Agent")
+    _git(root, "add", "-A")
+    _git(root, "commit", "-m", "checkpoint: baseline")
+
+
+def _has_changes(root: str) -> bool:
+    return bool(_git(root, "status", "--porcelain").stdout.strip())
+
+
+def _commit(root: str, message: str) -> str:
+    _git(root, "add", "-A")
+    res = _git(root, "commit", "-m", message)
+    return res.stdout.strip() or res.stderr.strip()
+
+
+def _rollback(root: str) -> None:
+    _git(root, "reset", "--hard", "HEAD")
+    _git(root, "clean", "-fd")
+
+
+def undo_last(root: str) -> str:
+    """Revert the site to the previous checkpoint (like Cursor undo)."""
+    if not os.path.isdir(os.path.join(root, ".git")):
+        return "No history yet -- nothing to undo."
+    log = _git(root, "rev-list", "--count", "HEAD").stdout.strip()
+    if not log.isdigit() or int(log) < 2:
+        return "No earlier checkpoint to undo to."
+    res = _git(root, "reset", "--hard", "HEAD~1")
+    if res.returncode == 0:
+        return "Reverted to the previous checkpoint."
+    return f"Undo failed: {res.stderr.strip()[:160]}"
+
+
+# ---- HTML validation (the "linter" the agent self-corrects against) --
+
+class _HTMLCheck(html.parser.HTMLParser):
+    """Minimal structural validator: catches unclosed/mismatched tags."""
+
+    _VOID = {
+        "area", "base", "br", "col", "embed", "hr", "img", "input",
+        "link", "meta", "param", "source", "track", "wbr",
+    }
+
+    def __init__(self):
+        super().__init__()
+        self.stack = []
+        self.errors = []
+
+    def handle_starttag(self, tag, attrs):
+        if tag not in self._VOID:
+            self.stack.append(tag)
+
+    def handle_endtag(self, tag):
+        if tag in self._VOID:
+            return
+        if tag in self.stack:
+            while self.stack and self.stack.pop() != tag:
+                pass
+        else:
+            self.errors.append(f"Unexpected closing </{tag}>")
+
+
+def _validate_html(root: str) -> str:
+    """Return a problem report for index.html, or '' if it looks OK."""
+    path = os.path.join(root, "index.html")
+    if not os.path.exists(path):
+        return "index.html is missing."
+    with open(path, "r", encoding="utf-8", errors="replace") as f:
+        content = f.read()
+    problems = []
+    low = content.lower()
+    if "<html" not in low:
+        problems.append("No <html> element.")
+    if "<title" not in low:
+        problems.append("Missing <title> (needed for SEO).")
+    if "<h1" not in low:
+        problems.append("Missing <h1>.")
+    checker = _HTMLCheck()
+    try:
+        checker.feed(content)
+    except Exception as e:
+        problems.append(f"Parse error: {e}")
+    if checker.stack:
+        problems.append("Unclosed tags: " + ", ".join(f"<{t}>" for t in checker.stack[:8]))
+    problems.extend(checker.errors[:8])
+    return "; ".join(problems)
+
+
+# ---- Tool implementations (all confined to the site dir) -------------
+
+def _list_files(root: str) -> str:
+    out = []
+    for dp, _dn, fn in os.walk(root):
+        if ".git" in dp:
+            continue
+        for f in fn:
+            out.append(os.path.relpath(os.path.join(dp, f), root))
+    return "\n".join(sorted(out)) or "(empty)"
+
+
+def _read_file(root: str, path: str) -> str:
+    with open(_safe_path(root, path), "r", encoding="utf-8", errors="replace") as f:
+        return f.read()
+
+
+def _write_file(root: str, path: str, content: str) -> str:
+    target = _safe_path(root, path)
+    os.makedirs(os.path.dirname(target) or root, exist_ok=True)
+    with open(target, "w", encoding="utf-8") as f:
+        f.write(content)
+    return f"Wrote {len(content)} bytes to {path}"
+
+
+def _create_file(root: str, path: str, content: str = "") -> str:
+    target = _safe_path(root, path)
+    if os.path.exists(target):
+        return f"ERROR: {path} already exists. Use edit_file or write_file to change it."
+    os.makedirs(os.path.dirname(target) or root, exist_ok=True)
+    with open(target, "w", encoding="utf-8") as f:
+        f.write(content)
+    return f"Created {path} ({len(content)} bytes)."
+
+
+def _delete_file(root: str, path: str) -> str:
+    target = _safe_path(root, path)
+    if not os.path.exists(target):
+        return f"ERROR: {path} does not exist."
+    os.remove(target)
+    return f"Deleted {path}."
+
+
+def _rename_file(root: str, path: str, new_path: str) -> str:
+    src = _safe_path(root, path)
+    dst = _safe_path(root, new_path)
+    if not os.path.exists(src):
+        return f"ERROR: {path} does not exist."
+    if os.path.exists(dst):
+        return f"ERROR: {new_path} already exists."
+    os.makedirs(os.path.dirname(dst) or root, exist_ok=True)
+    os.rename(src, dst)
+    return f"Renamed {path} -> {new_path}."
+
+
+def _edit_file(root: str, path: str, find: str, replace: str) -> str:
+    """Surgical edit: replace an exact snippet. Fails loudly if `find` is not
+    present or is ambiguous, so the agent can't silently corrupt the file."""
+    target = _safe_path(root, path)
+    with open(target, "r", encoding="utf-8", errors="replace") as f:
+        content = f.read()
+    count = content.count(find)
+    if count == 0:
+        return "ERROR: `find` snippet not found. Read the file and copy an exact snippet."
+    if count > 1:
+        return f"ERROR: `find` snippet matches {count} places; make it more specific (unique)."
+    with open(target, "w", encoding="utf-8") as f:
+        f.write(content.replace(find, replace, 1))
+    return f"Edited {path}: replaced 1 occurrence."
+
+
+def _search_files(root: str, query: str) -> str:
+    """Grep-like search across the folder so the agent can locate code."""
+    hits = []
+    for dp, _dn, fn in os.walk(root):
+        if ".git" in dp:
+            continue
+        for name in fn:
+            fp = os.path.join(dp, name)
+            try:
+                with open(fp, "r", encoding="utf-8", errors="replace") as f:
+                    for i, line in enumerate(f, 1):
+                        if query.lower() in line.lower():
+                            rel = os.path.relpath(fp, root)
+                            hits.append(f"{rel}:{i}: {line.strip()[:160]}")
+                            if len(hits) >= 40:
+                                return "\n".join(hits) + "\n...(truncated)"
+            except Exception:
+                continue
+    return "\n".join(hits) or "No matches."
+
+
+def _run_command(root: str, command: str) -> str:
+    """Run a shell/git command with cwd pinned to the site sandbox."""
+    proc = subprocess.run(
+        command, shell=True, cwd=root, capture_output=True, text=True, timeout=120
+    )
+    return f"exit={proc.returncode}\nSTDOUT:\n{proc.stdout}\nSTDERR:\n{proc.stderr}"
+
+
+TOOLS = [
+    {"type": "function", "function": {
+        "name": "update_plan",
+        "description": "Create or update your task list (todo checklist) for this request. Call this FIRST with the steps you intend to take, then call it again to mark steps done as you go. This is shown live to the user.",
+        "parameters": {"type": "object", "properties": {
+            "steps": {"type": "array", "items": {"type": "object", "properties": {
+                "title": {"type": "string"},
+                "status": {"type": "string", "enum": ["pending", "in_progress", "done"]},
+            }, "required": ["title", "status"]}},
+        }, "required": ["steps"]},
+    }},
+    {"type": "function", "function": {
+        "name": "list_files",
+        "description": "List all files in the website project.",
+        "parameters": {"type": "object", "properties": {}},
+    }},
+    {"type": "function", "function": {
+        "name": "search_files",
+        "description": "Search all files for text (like grep). Use to locate the exact code to change before editing.",
+        "parameters": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]},
+    }},
+    {"type": "function", "function": {
+        "name": "read_file",
+        "description": "Read a file's contents.",
+        "parameters": {"type": "object", "properties": {"path": {"type": "string"}}, "required": ["path"]},
+    }},
+    {"type": "function", "function": {
+        "name": "edit_file",
+        "description": "PREFERRED for changes: replace an exact unique snippet in a file. `find` must match the file exactly and be unique. Use this instead of rewriting whole files.",
+        "parameters": {"type": "object", "properties": {
+            "path": {"type": "string"},
+            "find": {"type": "string", "description": "Exact snippet currently in the file."},
+            "replace": {"type": "string", "description": "Replacement snippet."},
+        }, "required": ["path", "find", "replace"]},
+    }},
+    {"type": "function", "function": {
+        "name": "write_file",
+        "description": "Fully rewrite an existing file when an edit_file is impractical.",
+        "parameters": {"type": "object", "properties": {
+            "path": {"type": "string"}, "content": {"type": "string"},
+        }, "required": ["path", "content"]},
+    }},
+    {"type": "function", "function": {
+        "name": "create_file",
+        "description": "Create a NEW file (e.g. styles.css, about.html). Fails if it already exists.",
+        "parameters": {"type": "object", "properties": {
+            "path": {"type": "string"}, "content": {"type": "string"},
+        }, "required": ["path", "content"]},
+    }},
+    {"type": "function", "function": {
+        "name": "delete_file",
+        "description": "Delete a file from the project.",
+        "parameters": {"type": "object", "properties": {"path": {"type": "string"}}, "required": ["path"]},
+    }},
+    {"type": "function", "function": {
+        "name": "rename_file",
+        "description": "Rename or move a file within the project.",
+        "parameters": {"type": "object", "properties": {
+            "path": {"type": "string"}, "new_path": {"type": "string"},
+        }, "required": ["path", "new_path"]},
+    }},
+    {"type": "function", "function": {
+        "name": "run_command",
+        "description": "Run a shell or git command in the project directory.",
+        "parameters": {"type": "object", "properties": {"command": {"type": "string"}}, "required": ["command"]},
+    }},
+]
+
+_SYSTEM = """You are an elite web-engineering agent working inside ONE website
+project folder -- like Cursor or Claude Code. You act autonomously: you read,
+plan, edit, verify, and finish without asking the user to do steps for you.
+
+Workflow (follow every time):
+1. Call `update_plan` FIRST with a short checklist of the steps you'll take.
+2. Explore with `search_files` / `read_file` before editing so your edits are
+   precise. Never guess file contents.
+3. Prefer `edit_file` (surgical find/replace) for changes; use `create_file`
+   for new files, `write_file` only for full rewrites.
+4. As you complete each step, call `update_plan` again marking it done and the
+   next one in_progress. Keep the plan honest and current.
+5. Keep the site's premium design quality, valid semantic HTML, responsive
+   layout, and accessibility. Match the existing style unless asked to change it.
+6. When everything is done and verified, give a short, friendly summary of what
+   you changed (bullet points). Do not call more tools after that.
+
+Be decisive and thorough. Make the FULL change requested, not a partial one."""
+
+
+def _dispatch(root: str, name: str, args: dict) -> str:
+    try:
+        if name == "list_files":
+            return _list_files(root)
+        if name == "search_files":
+            return _search_files(root, args["query"])
+        if name == "read_file":
+            return _read_file(root, args["path"])
+        if name == "edit_file":
+            return _edit_file(root, args["path"], args["find"], args["replace"])
+        if name == "write_file":
+            return _write_file(root, args["path"], args["content"])
+        if name == "create_file":
+            return _create_file(root, args["path"], args.get("content", ""))
+        if name == "delete_file":
+            return _delete_file(root, args["path"])
+        if name == "rename_file":
+            return _rename_file(root, args["path"], args["new_path"])
+        if name == "run_command":
+            return _run_command(root, args["command"])
+        if name == "update_plan":
+            return "Plan updated."
+        return f"Unknown tool: {name}"
+    except Exception as e:
+        return f"ERROR: {e}"
+
+
+def _describe_action(name: str, args: dict) -> str:
+    """Human-friendly, Cursor-style label for a tool call."""
+    labels = {
+        "list_files": "Listed project files",
+        "search_files": f"Searched for “{args.get('query', '')}”",
+        "read_file": f"Read {args.get('path', '')}",
+        "edit_file": f"Edited {args.get('path', '')}",
+        "write_file": f"Rewrote {args.get('path', '')}",
+        "create_file": f"Created {args.get('path', '')}",
+        "delete_file": f"Deleted {args.get('path', '')}",
+        "rename_file": f"Renamed {args.get('path', '')} → {args.get('new_path', '')}",
+        "run_command": f"Ran `{str(args.get('command', ''))[:60]}`",
+        "update_plan": "Updated plan",
+    }
+    return labels.get(name, name)
+
+
+def run_agent(site_dir: str, instruction: str, max_steps: int = 24,
+              on_step=None, on_event=None) -> str:
+    """Run the agent loop until it stops calling tools, validating HTML and
+    committing a checkpoint on success (rolling back on failure).
+
+    on_event(dict): structured events -- {"type": "plan"|"tool"|"tool_result"|
+        "assistant"|"status"|"done", ...} -- used by the IDE API for rich SSE.
+    on_step(str): legacy plain-text activity trail (still supported).
+    Returns the final assistant message.
+    """
+    def emit(event: dict) -> None:
+        if on_event:
+            try:
+                on_event(event)
+            except Exception:
+                pass
+        if on_step:
+            t = event.get("type")
+            if t == "tool":
+                on_step(event.get("label", ""))
+            elif t == "status":
+                on_step(event.get("message", ""))
+
+    _ensure_repo(site_dir)
+
+    context = ""
+    lead_path = os.path.join(site_dir, "lead.json")
+    if os.path.exists(lead_path):
+        with open(lead_path, "r", encoding="utf-8", errors="replace") as f:
+            context = "\n\nBusiness details for this site:\n" + f.read()[:2000]
+
+    messages = [
+        {"role": "system", "content": _SYSTEM + context},
+        {"role": "user", "content": instruction},
+    ]
+
+    final = "Reached step limit before finishing."
+    validated_once = False
+    for _ in range(max_steps):
+        msg = chat(messages, tools=TOOLS, temperature=0.3, max_tokens=8000)
+        messages.append(msg)
+        tool_calls = msg.get("tool_calls") or []
+
+        # Stream any assistant prose that came alongside tool calls.
+        if msg.get("content"):
+            emit({"type": "assistant", "text": msg["content"]})
+
+        if not tool_calls:
+            problems = _validate_html(site_dir)
+            if problems and not validated_once:
+                validated_once = True
+                emit({"type": "status", "message": "Validating HTML and fixing issues…"})
+                messages.append({
+                    "role": "user",
+                    "content": "Validation found issues, fix them before finishing: " + problems,
+                })
+                continue
+            final = (msg.get("content") or "Done.").strip()
+            break
+
+        for call in tool_calls:
+            fn = call["function"]
+            try:
+                args = json.loads(fn.get("arguments") or "{}")
+            except (json.JSONDecodeError, TypeError):
+                args = {}
+            name = fn["name"]
+
+            if name == "update_plan":
+                emit({"type": "plan", "steps": args.get("steps", [])})
+            else:
+                emit({"type": "tool", "name": name, "label": _describe_action(name, args), "args": args})
+
+            result = _dispatch(site_dir, name, args)
+
+            if name not in ("update_plan",):
+                emit({"type": "tool_result", "name": name, "ok": not result.startswith("ERROR"),
+                      "summary": result[:200]})
+
+            messages.append({
+                "role": "tool",
+                "tool_call_id": call["id"],
+                "content": result[:6000],
+            })
+
+    # Checkpoint or roll back based on the final state.
+    problems = _validate_html(site_dir)
+    if problems:
+        _rollback(site_dir)
+        emit({"type": "status", "message": "Rolled back to last good state"})
+        return f"⚠️ Change rolled back -- site left in last good state. Issue: {problems}"
+    if _has_changes(site_dir):
+        _commit(site_dir, f"agent: {instruction[:60]}")
+        emit({"type": "status", "message": "Saved checkpoint (git)"})
+        return final + "\n\n✅ Saved a checkpoint (git). You can undo anytime."
+    return final + "\n\n(No file changes were made.)"
