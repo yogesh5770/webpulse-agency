@@ -225,7 +225,11 @@ def _try_gemini_direct(messages, tools, temperature, max_tokens, timeout):
     last_err = None
     # Rotate through all loaded keys
     for key in config.GEMINI_API_KEYS:
-        url = f"https://generativelanguage.googleapis.com/v1beta/openai/chat/completions?key={key}"
+        url = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {key}"
+        }
         try:
             resp = requests.post(url, headers=headers, json=payload, timeout=timeout)
             if resp.status_code == 200:
