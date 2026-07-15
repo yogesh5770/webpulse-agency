@@ -237,8 +237,13 @@ def _try_gemini_direct(messages, tools, temperature, max_tokens, timeout):
                     if choice.get("tool_calls"):
                         out_msg["tool_calls"] = choice["tool_calls"]
                     return out_msg
+                
                 logger.warning(f"Gemini key failed ({key[:10]}...) for model {model}: HTTP {resp.status_code} {resp.text[:150]}")
                 last_err = f"Model {model} - HTTP {resp.status_code}: {resp.text[:150]}"
+                
+                # If quota/prepayment depleted or suspended, additional model requests for this key will fail as well.
+                if resp.status_code in (403, 429):
+                    break
             except Exception as e:
                 logger.warning(f"Gemini key exception ({key[:10]}...) for model {model}: {e}")
                 last_err = f"Model {model} - {e}"
@@ -278,7 +283,7 @@ def _try_openai_direct(messages, tools, temperature, max_tokens, timeout):
 
 # ---- Public Entrypoint with Failover Router ----
 
-def chat(messages, tools=None, temperature=0.7, max_tokens=8000, timeout=180):
+def chat(messages, tools=None, temperature=0.7, max_tokens=8000, timeout=25):
     """Sends chat request. Retries and fails over across active providers.
     Prioritizes Gemini Direct (which offers a robust free tier) if the key is present.
     """
