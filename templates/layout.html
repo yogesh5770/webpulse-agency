@@ -10,6 +10,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family={{FONTS_IMPORT}}&display=swap" rel="stylesheet">
+  <!-- CDNs: Tailwind v4 + GSAP + Puter.js -->
+  <script src="https://unpkg.com/@tailwindcss/browser@4"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+  <script src="https://js.puter.com/v2/"></script>
   
   <style>
     :root {
@@ -197,6 +201,38 @@
   </footer>
 
   <a href="https://wa.me/{{WHATSAPP_NUMBER}}" class="whatsapp-float" target="_blank" aria-label="Chat on WhatsApp">💬</a>
+
+  <!-- GSAP & Scroll Reveal Animations -->
+  <script>
+    // GSAP Hero Reveal
+    window.addEventListener('DOMContentLoaded', () => {
+      if (typeof gsap !== 'undefined') {
+        gsap.from(".hero h1", { duration: 1.2, y: 50, opacity: 0, ease: "power4.out" });
+        gsap.from(".hero p", { duration: 1.2, y: 30, opacity: 0, delay: 0.2, ease: "power4.out" });
+        gsap.from(".hero .cta-btn, .hero .btn", { duration: 1, scale: 0.9, opacity: 0, delay: 0.4, stagger: 0.1, ease: "back.out(1.7)" });
+      }
+      
+      // Scroll Reveal Observer
+      const sections = document.querySelectorAll('section');
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            entry.target.style.opacity = 1;
+            entry.target.style.transform = 'translateY(0)';
+          }
+        });
+      }, { threshold: 0.1 });
+      
+      sections.forEach(sec => {
+        if (!sec.classList.contains('hero')) {
+          sec.style.opacity = 0;
+          sec.style.transform = 'translateY(40px)';
+          sec.style.transition = 'opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1)';
+          observer.observe(sec);
+        }
+      });
+    });
+  </script>
 
 </body>
 </html>
