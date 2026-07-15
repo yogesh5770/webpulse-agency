@@ -77,6 +77,32 @@ def find_leads(query: str, max_results: int) -> list[dict]:
             if rv.get("text")
         ]
 
+        # Lead scoring calculations
+        rating = d.get("rating") or 0.0
+        review_count = d.get("user_ratings_total") or 0
+        photo_count = len(photos)
+        
+        # Scoring algorithm
+        # 1. Review score: 0 to 40 pts (more reviews = higher score, e.g. 50+ reviews gets max points)
+        rev_score = min(review_count / 50 * 40, 40)
+        # 2. Rating score: 0 to 30 pts (rating * 6)
+        rat_score = rating * 6
+        # 3. Photos score: 0 to 20 pts (each photo = 4 pts, up to 5 photos)
+        pho_score = min(photo_count * 4, 20)
+        # 4. Phone completeness: 0 or 10 pts
+        ph_score = 10 if phone else 0
+        
+        total_score = int(rev_score + rat_score + pho_score + ph_score)
+        total_score = min(max(total_score, 0), 100) # Clamp to 0-100
+        
+        # Priority mapping
+        if total_score >= 80:
+            priority = "High"
+        elif total_score >= 50:
+            priority = "Medium"
+        else:
+            priority = "Low"
+
         leads.append(
             {
                 "place_id": place_id,
@@ -87,6 +113,8 @@ def find_leads(query: str, max_results: int) -> list[dict]:
                 "lat": geo.get("lat"),
                 "lng": geo.get("lng"),
                 "photos_json": json.dumps(photos[:8]),
+                "score": total_score,
+                "priority": priority,
                 "details_json": json.dumps(
                     {
                         "rating": d.get("rating"),

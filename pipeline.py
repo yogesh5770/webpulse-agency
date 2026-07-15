@@ -26,18 +26,36 @@ _status = {"running": False, "last": "", "processed": 0}
 
 
 def discover(query: str | None = None, max_results: int | None = None) -> tuple[int, str]:
-    """Find leads and add the new (non-duplicate) ones. When no query is given,
-    an AI-generated fresh query is used so discovery keeps finding new areas.
-    Returns (added_count, query_used)."""
-    if not query:
-        query = next_query()  # AI-driven (or fallback rotation)
+    """Find leads and add the new (non-duplicate) ones.
+    If no query is given, we keep trying random queries from next_query()
+    until we find at least 1 lead (up to a limit of 15 attempts)."""
     max_results = max_results or config.LEAD_MAX_RESULTS
-    leads = find_leads(query, max_results)
-    added = 0
-    for lead in leads:
-        if db.add_lead(lead):  # False when the business already exists (dedup)
-            added += 1
-    return added, query
+    
+    if query:
+        leads = find_leads(query, max_results)
+        added = 0
+        for lead in leads:
+            if db.add_lead(lead):
+                added += 1
+        return added, query
+
+    # Background auto-run: search until we get at least 1 lead or hit retry limit
+    attempts = 0
+    while attempts < 15:
+        q = next_query()
+        try:
+            leads = find_leads(q, max_results)
+            added = 0
+            for lead in leads:
+                if db.add_lead(lead):
+                    added += 1
+            if added > 0:
+                return added, q
+        except Exception:
+            pass # Keep trying other queries
+        attempts += 1
+        
+    return 0, "No new leads discovered after 15 searches"
 
 
 def process_one_lead() -> dict | None:
@@ -46,6 +64,12 @@ def process_one_lead() -> dict | None:
     if lead is None:
         return None
     pid = lead["place_id"]
+    
+    # Skip low-priority leads to optimize compilation and deployment resources
+    if lead.get("priority") == "Low":
+        db.update_lead(pid, status="skipped", error="Skipped: Low Quality Score")
+        return db.get_lead(pid)
+        
     try:
         site_marker = generate_site(lead)          # "db://<place_id>" — files stored in DB
         # Deploy needs real files: materialize the DB folder into a temp dir.
@@ -72,7 +96,7 @@ def _loop():
         try:
             result = process_one_lead()
             if result is None:
-                # No leads waiting -> AI-generate a fresh query, discover, idle.
+                # No leads waiting -> AI-generate fresh queries until we add at least 1
                 added, q = discover()
                 _status["last"] = f"Discovered {added} lead(s) for '{q}'"
                 _stop_flag.wait(config.WORKER_INTERVAL_SECONDS)

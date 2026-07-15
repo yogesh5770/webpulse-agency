@@ -79,6 +79,8 @@ def init_db() -> None:
                 photos_json  TEXT,
                 details_json TEXT,
                 status       TEXT NOT NULL DEFAULT 'new',
+                score        INTEGER NOT NULL DEFAULT 0,
+                priority     TEXT NOT NULL DEFAULT 'Low',
                 site_dir     TEXT,
                 live_url     TEXT,
                 message      TEXT,
@@ -88,6 +90,12 @@ def init_db() -> None:
             )
             """
         )
+        # Migrate existing schemas safely
+        for col, col_type in [("score", "INTEGER NOT NULL DEFAULT 0"), ("priority", "TEXT NOT NULL DEFAULT 'Low'")]:
+            try:
+                cur.execute(f"ALTER TABLE leads ADD COLUMN {col} {col_type}")
+            except Exception:
+                pass
         cur.execute("CREATE INDEX IF NOT EXISTS idx_status ON leads(status)")
         cur.execute(
             """
@@ -176,7 +184,7 @@ def lead_exists(place_id: str) -> bool:
 
 
 def add_lead(lead: dict) -> bool:
-    """Insert a newly discovered lead. Returns False if it already exists
+    """Insert a newly discovered lead with score and priority. Returns False if it already exists
     (dedup), True if it was inserted. Uses ON CONFLICT so it works the same
     on both backends."""
     now = int(time.time())
@@ -187,8 +195,8 @@ def add_lead(lead: dict) -> bool:
                 """
                 INSERT INTO leads
                     (place_id, name, category, phone, address, lat, lng,
-                     photos_json, details_json, status, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, ?)
+                     photos_json, details_json, status, score, priority, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, ?, ?, ?)
                 ON CONFLICT (place_id) DO NOTHING
                 """
             ),
@@ -196,7 +204,8 @@ def add_lead(lead: dict) -> bool:
                 lead["place_id"], lead.get("name", ""), lead.get("category", ""),
                 lead.get("phone", ""), lead.get("address", ""), lead.get("lat"),
                 lead.get("lng"), lead.get("photos_json", "[]"),
-                lead.get("details_json", "{}"), now, now,
+                lead.get("details_json", "{}"), lead.get("score", 0),
+                lead.get("priority", "Low"), now, now,
             ),
         )
         # rowcount == 0 -> conflict (duplicate); == 1 -> inserted.
@@ -217,7 +226,7 @@ def update_lead(place_id: str, **fields) -> None:
 
 
 def next_new_lead() -> dict | None:
-    """Atomically claim the oldest 'new' lead and mark it 'building' so two
+    """Atomically claim the highest-scoring 'new' lead and mark it 'building' so two
     workers never grab the same one. On Postgres we use SELECT ... FOR UPDATE
     SKIP LOCKED for true concurrency safety; SQLite is single-writer so the
     transaction is enough."""
@@ -226,11 +235,11 @@ def next_new_lead() -> dict | None:
         if _PG:
             cur.execute(
                 "SELECT * FROM leads WHERE status = 'new' "
-                "ORDER BY created_at LIMIT 1 FOR UPDATE SKIP LOCKED"
+                "ORDER BY score DESC, created_at LIMIT 1 FOR UPDATE SKIP LOCKED"
             )
         else:
             cur.execute(
-                "SELECT * FROM leads WHERE status = 'new' ORDER BY created_at LIMIT 1"
+                "SELECT * FROM leads WHERE status = 'new' ORDER BY score DESC, created_at LIMIT 1"
             )
         row = cur.fetchone()
         if row is None:
