@@ -398,10 +398,21 @@ def run_agent(site_dir: str, instruction: str, max_steps: int = 24,
         with open(lead_path, "r", encoding="utf-8", errors="replace") as f:
             context = "\n\nBusiness details for this site:\n" + f.read()[:2000]
 
-    messages = [
-        {"role": "system", "content": _SYSTEM + context},
-        {"role": "user", "content": instruction},
-    ]
+    # Load persistent chat history
+    history_path = os.path.join(site_dir, "chat_history.json")
+    history = []
+    if os.path.exists(history_path):
+        try:
+            with open(history_path, "r", encoding="utf-8") as f:
+                history = json.load(f)
+        except Exception:
+            history = []
+
+    messages = [{"role": "system", "content": _SYSTEM + context}]
+    # Include last 10 messages from history to keep context window compact
+    cleaned_history = [m for m in history if m.get("role") in ("user", "assistant")]
+    messages.extend(cleaned_history[-10:])
+    messages.append({"role": "user", "content": instruction})
 
     final = "Reached step limit before finishing."
     validated_once = False
@@ -457,15 +468,31 @@ def run_agent(site_dir: str, instruction: str, max_steps: int = 24,
                 "content": result[:6000],
             })
 
+    # Save conversation history helper
+    def save_history(ans_text):
+        history.append({"role": "user", "content": instruction})
+        history.append({"role": "assistant", "content": ans_text})
+        try:
+            with open(history_path, "w", encoding="utf-8") as f:
+                json.dump(history[-50:], f, indent=2)
+        except Exception:
+            pass
+
     # Checkpoint or roll back based on the final state.
     if modified_files:
         problems = _validate_html(site_dir)
         if problems:
             _rollback(site_dir)
             emit({"type": "status", "message": "Rolled back to last good state"})
-            return f"⚠️ Change rolled back -- site left in last good state. Issue: {problems}"
+            err_msg = f"⚠️ Change rolled back -- site left in last good state. Issue: {problems}"
+            save_history(err_msg)
+            return err_msg
         if _has_changes(site_dir):
             _commit(site_dir, f"agent: {instruction[:60]}")
             emit({"type": "status", "message": "Saved checkpoint (git)"})
-            return final + "\n\n✅ Saved a checkpoint (git). You can undo anytime."
+            success_msg = final + "\n\n✅ Saved a checkpoint (git). You can undo anytime."
+            save_history(success_msg)
+            return success_msg
+    
+    save_history(final)
     return final + "\n\n(No file changes were made.)"
