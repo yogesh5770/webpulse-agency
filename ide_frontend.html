@@ -613,7 +613,23 @@ require(['vs/editor/editor.main'], () => {
 async function loadSites(){
   const r = await fetch('/ide/api/sites'); const list = await r.json();
   const sel = $('#siteSel'); sel.innerHTML='';
-  if(!list.length){ sel.innerHTML='<option>(no generated sites yet)</option>'; return; }
+  if(!list.length){
+    sel.innerHTML='<option>(no generated sites yet)</option>';
+    $('#bizName').textContent = 'No Website Yet';
+    $('#bizRating').textContent = '☆ ☆ ☆ ☆ ☆ -';
+    $('#bizCat').textContent = '-';
+    $('#bizPhone').textContent = '-';
+    $('#bizTheme').textContent = '-';
+    $('#bizStatus').textContent = '-';
+    $('#scoreOverall').textContent = '-';
+    $('#scoreUI').textContent = '-';
+    $('#scoreUX').textContent = '-';
+    $('#scoreSEO').textContent = '-';
+    $('#scoreSpeed').textContent = '-';
+    $('#preview').srcdoc = '<div style="font-family:sans-serif;padding:2rem;text-align:center;color:#666;"><h3>No Website Generated Yet</h3><p>Go to the <b>Dashboard</b> tab, enter a business category, and click <b>⚡ Single-Click Run</b> to build your first website!</p></div>';
+    state.site = null;
+    return;
+  }
   
   state.sitesData = {};
   list.forEach(s=>{
