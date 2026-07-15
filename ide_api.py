@@ -62,14 +62,12 @@ def register_ide_routes(app) -> None:
     def sites():
         out = []
         for l in _published():
-            out.append({
-                "id": (l.get("place_id") or "")[:8],
-                "place_id": l.get("place_id"),
-                "name": l.get("name") or "(unnamed)",
-                "category": l.get("category") or "",
-                "live_url": l.get("live_url") or "",
-                "status": l.get("status") or "",
-            })
+            item = dict(l)
+            item["id"] = (l.get("place_id") or "")[:8]
+            # Exclude large file markers
+            if "site_dir" in item:
+                del item["site_dir"]
+            out.append(item)
         return JSONResponse(out)
 
     @app.get("/ide/api/tree")
