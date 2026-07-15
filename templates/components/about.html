@@ -1,0 +1,33 @@
+<section class="about" id="about">
+  <div class="grid" style="align-items: center; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));">
+    <div>
+      <h2 class="section-title" style="text-align: left;">{{ABOUT_TITLE}}</h2>
+      <p style="font-size: 1.1rem; opacity: 0.85; margin-bottom: 1.5rem; line-height: 1.6;">
+        {{ABOUT_DESCRIPTION}}
+      </p>
+      <div style="display: flex; flex-direction: column; gap: 1rem;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <span style="background: hsla(var(--primary-hsl), 0.15); color: var(--primary); width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold;">✓</span>
+          <span>Only the finest quality ingredients and materials</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <span style="background: hsla(var(--primary-hsl), 0.15); color: var(--primary); width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold;">✓</span>
+          <span>Expertly crafted by passionate local specialists</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <span style="background: hsla(var(--primary-hsl), 0.15); color: var(--primary); width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold;">✓</span>
+          <span>100% satisfaction guaranteed with custom ordering support</span>
+        </div>
+      </div>
+    </div>
+    <div style="position: relative;">
+      <div style="aspect-ratio: 4/3; border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border); box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);">
+        <img src="{{ABOUT_IMAGE}}" alt="About {{BUSINESS_NAME}}" style="width: 100%; height: 100%; object-fit: cover;">
+      </div>
+      <div style="position: absolute; -right: 20px; -bottom: 20px; background: var(--primary); color: white; padding: 1.5rem; border-radius: var(--radius); font-weight: 800; text-align: center; box-shadow: 0 10px 25px rgba(var(--primary-hsl), 0.4);">
+        <div style="font-size: 2rem; line-height: 1;">{{ABOUT_XP_YEARS}}</div>
+        <div style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 4px;">Years Experience</div>
+      </div>
+    </div>
+  </div>
+</section>

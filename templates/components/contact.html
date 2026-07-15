@@ -1,0 +1,31 @@
+<section class="contact" id="contact">
+  <div class="section-header">
+    <h2 class="section-title">Get In Touch</h2>
+    <p class="section-subtitle">We would love to hear from you. Visit us or reach out via WhatsApp.</p>
+  </div>
+  <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));">
+    <div style="display: flex; flex-direction: column; gap: 2rem;">
+      <div class="card" style="padding: 2rem;">
+        <h3 style="font-size: 1.3rem; font-weight: 700; margin-bottom: 1.5rem; color: var(--primary);">Contact Details</h3>
+        <p style="margin-bottom: 1rem; opacity: 0.85;">
+          <strong>📍 Address:</strong><br>{{BUSINESS_ADDRESS}}
+        </p>
+        <p style="margin-bottom: 1rem; opacity: 0.85;">
+          <strong>📞 Phone:</strong><br>{{BUSINESS_PHONE}}
+        </p>
+        <p style="opacity: 0.85;">
+          <strong>⏰ Opening Hours:</strong><br>
+          {{BUSINESS_HOURS}}
+        </p>
+      </div>
+      
+      <a href="https://wa.me/{{WHATSAPP_NUMBER}}" target="_blank" class="cta-btn" style="text-align: center; padding: 16px; font-size: 1.1rem;">
+        💬 Chat Live on WhatsApp
+      </a>
+    </div>
+    
+    <div style="border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border); box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2); min-height: 350px; position: relative;">
+      {{MAPS_IFRAME}}
+    </div>
+  </div>
+</section>

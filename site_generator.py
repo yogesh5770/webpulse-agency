@@ -13,8 +13,30 @@ import logging
 from agent_router import chat_text
 from leads_places import photo_url
 import site_store
+import site_assembler
 
 logger = logging.getLogger(__name__)
+
+
+def hex_to_hsl(hex_str: str) -> str:
+    hex_str = hex_str.lstrip('#')
+    if len(hex_str) != 6:
+        return "215 90% 50%" # Fallback HSL
+    try:
+        r, g, b = tuple(int(hex_str[i:i+2], 16) for i in (0, 2, 4))
+        r, g, b = r/255.0, g/255.0, b/255.0
+        mx, mn = max(r, g, b), min(r, g, b)
+        diff = mx - mn
+        h = 0
+        if mx == mn: h = 0
+        elif mx == r: h = (60 * ((g - b) / diff) + 360) % 360
+        elif mx == g: h = (60 * ((r - b) / diff) + 120) % 360
+        elif mx == b: h = (60 * ((r - g) / diff) + 240) % 360
+        l = (mx + mn) / 2
+        s = 0 if l == 0 or l == 1 else (mx - l) / min(l, 1 - l)
+        return f"{int(h)} {int(s*100)}% {int(l*100)}%"
+    except Exception:
+        return "215 90% 50%"
 
 
 def _strip_fences(text: str) -> str:
@@ -105,29 +127,73 @@ def generate_site(lead: dict) -> str:
         f"Business Facts:\n{facts_str}\n"
         f"Business Analysis:\n{json.dumps(analysis, indent=2)}\n"
         f"Brand Settings:\n{json.dumps(brand, indent=2)}\n\n"
-        "Provide a JSON description of all copy sections, including headlines, subheadings, lists, and call-to-actions. Keep it structured. Return ONLY raw JSON."
+        "Provide a JSON description of all copy sections. Return ONLY raw JSON matching this format:\n"
+        "{\n"
+        '  "hero_title": "Headline targeting the USP of the business",\n'
+        '  "hero_subtitle": "Sub-headline emphasizing benefits",\n'
+        '  "hero_cta_primary": "E.g. Book Now, Order Now",\n'
+        '  "about_title": "About Us Title",\n'
+        '  "about_description": "Engaging story about the business",\n'
+        '  "about_xp_years": 5,\n'
+        '  "services_title": "Our Offerings Title",\n'
+        '  "services_subtitle": "Subtitle describing pricing/choices",\n'
+        '  "services": [\n'
+        '    {"title": "Service name", "description": "Short service description", "price": "$15"}\n'
+        '  ],\n'
+        '  "reviews": [\n'
+        '    {"author": "Customer name", "text": "Customer review text", "rating": 5}\n'
+        '  ]\n'
+        "}"
     )
     copy_raw = _strip_fences(chat_text([{"role": "user", "content": prompt_writer}], temperature=0.5))
+    try:
+        copy_data = json.loads(copy_raw)
+    except Exception:
+        copy_data = {
+            "hero_title": f"Welcome to {lead.get('name')}",
+            "hero_subtitle": f"Top-rated {lead.get('category')} experience.",
+            "hero_cta_primary": "Book Now",
+            "about_title": "About Us",
+            "about_description": "Serving our local community with premium quality and unmatched dedication.",
+            "about_xp_years": 5,
+            "services_title": "Our Services",
+            "services_subtitle": "Premium offerings tailored for you.",
+            "services": [],
+            "reviews": []
+        }
 
-    # --- Agent 4: Frontend Builder Agent ---
-    prompt_builder = (
-        "You are a World-Class Frontend Architect & Product Designer. Output ONE complete, valid, self-contained index.html.\n"
-        "Implement an ultra-premium visual design system (valued at 1 Lakh+ INR) using custom CSS variables (HSL structure) and vanilla JS.\n\n"
-        "Strict Visual Design & UX Guidelines:\n"
-        "1. Modern Layout & Spacing: Fluid typography using `clamp()`, generous and deliberate breathing room (vertical padding 8rem-10rem for sections), desktop max-width 1280px with side paddings.\n"
-        "2. Luxury Aesthetics: Glassmorphism headers (backdrop-filter: blur(20px) border-bottom 1px solid rgba(255,255,255,0.08)), cards with ultra-soft double-layered box shadows, thin subtle borders, and smooth gradients.\n"
-        "3. High-End Animations: CSS transitions with custom cubic-bezier timing (`all 0.5s cubic-bezier(0.16, 1, 0.3, 1)`) for hovers. Implement scroll-triggered reveal animations on sections using a performance-optimized IntersectionObserver.\n"
-        "4. SVGs Only: Do NOT use broken emojis or FontAwesome/image-based icons. Code clean, inline styled SVGs with customized stroke widths for all visual elements (stars, phone, location, checkmarks).\n"
-        "5. Conversion Focus: Eye-catching Hero with high-contrast dual buttons, sticky navigation containing active-link states, interactive Accordion/Faq or Tabs, structured Menu/Services grid, clean reviews carousel, and tap-to-call mobile links.\n\n"
-        f"Business Facts:\n{facts_str}\n"
-        f"Brand Settings:\n{json.dumps(brand, indent=2)}\n"
-        f"Copy Content Structure:\n{copy_raw}\n\n"
-        "Return ONLY the raw HTML document content. Do NOT wrap in markdown code blocks or add any commentary."
-    )
-    html = _strip_fences(chat_text([{"role": "user", "content": prompt_builder}], temperature=0.7, max_tokens=16000))
-
-    if "<html" not in html.lower():
-        raise RuntimeError("Frontend Builder did not produce a valid HTML document.")
+    # Map brand colors & fonts to HSL
+    colors = brand.get("colors") or ["#0f172a", "#38bdf8", "#f8fafc", "#0f172a"]
+    primary_hex = colors[1] if len(colors) > 1 else "#38bdf8"
+    secondary_hex = colors[2] if len(colors) > 2 else "#f8fafc"
+    
+    config_dict = {
+        "business_name": lead.get("name"),
+        "business_category": lead.get("category"),
+        "whatsapp_number": lead.get("phone") or "",
+        "business_address": lead.get("address") or "N/A",
+        "business_phone": lead.get("phone") or "N/A",
+        "business_hours": details.get("hours", ["Monday - Friday: 9 AM - 6 PM"]),
+        "gallery_images": images or [
+            "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=cover&w=400&q=80"
+        ],
+        "primary_hsl": hex_to_hsl(primary_hex),
+        "secondary_hsl": hex_to_hsl(secondary_hex),
+        "bg_hsl": "225 25% 9%", # Premium dark background HSL
+        "text_hsl": "0 0% 95%", # HSL light text
+        "accent_hsl": hex_to_hsl(primary_hex),
+        "radius": "12px",
+        "fonts_import": "|".join(brand.get("fonts", ["Inter", "Outfit"])),
+        "font_family": f"'{brand.get('fonts', ['Inter'])[0]}', sans-serif",
+        "seo_description": f"Check out {lead.get('name')} for the best {lead.get('category')} in town.",
+        "seo_keywords": f"{lead.get('name')}, {lead.get('category')}, services, booking",
+    }
+    
+    # Merge copy data
+    config_dict.update(copy_data)
+    
+    # Run the Assembly Engine (Website OS Compiler)
+    html = site_assembler.assemble_site(config_dict)
 
     # --- Agent 5: SEO & QA Expert Agent ---
     prompt_qa = (
