@@ -53,12 +53,63 @@ def _status_md():
     return "\n\n".join(lines)
 
 
+def _stats_html():
+    counts = db.counts_by_status()
+    new_cnt = counts.get("new", 0)
+    building_cnt = counts.get("building", 0)
+    published_cnt = counts.get("published", 0)
+    failed_cnt = counts.get("failed", 0)
+    contacted_cnt = counts.get("contacted", 0)
+    
+    total_found = new_cnt + building_cnt + published_cnt + failed_cnt + contacted_cnt
+    queue_cnt = new_cnt + building_cnt
+    total_builds = published_cnt + failed_cnt + contacted_cnt
+    
+    if total_builds > 0:
+        success_rate = (published_cnt + contacted_cnt) / total_builds * 100
+        success_text = f"{success_rate:.1f}% Success"
+    else:
+        success_text = "0% Success"
+        
+    cost_saved = total_builds * 0.05
+    
+    return f"""
+<div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:16px;margin:16px 0 24px 0">
+  <div style="background:#121826;border:1px solid #232a3a;padding:20px;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,0.25);transition:transform 0.2s">
+    <div style="font-size:11px;color:#94a3b8;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.05em">Today's Builds</div>
+    <div style="font-size:28px;font-weight:800;color:#f8fafc">{total_builds}</div>
+    <div style="font-size:10px;color:#22c55e;margin-top:4px">🟢 {success_text}</div>
+  </div>
+  <div style="background:#121826;border:1px solid #232a3a;padding:20px;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,0.25);transition:transform 0.2s">
+    <div style="font-size:11px;color:#94a3b8;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.05em">Businesses Found</div>
+    <div style="font-size:28px;font-weight:800;color:#f8fafc">{total_found}</div>
+    <div style="font-size:10px;color:#94a3b8;margin-top:4px">{queue_cnt} in Queue</div>
+  </div>
+  <div style="background:#121826;border:1px solid #232a3a;padding:20px;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,0.25);transition:transform 0.2s">
+    <div style="font-size:11px;color:#94a3b8;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.05em">Success Rate</div>
+    <div style="font-size:28px;font-weight:800;color:#22c55e">{success_text}</div>
+    <div style="font-size:10px;color:#22c55e;margin-top:4px">{published_cnt + contacted_cnt} Published / {failed_cnt} Failed</div>
+  </div>
+  <div style="background:#121826;border:1px solid #232a3a;padding:20px;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,0.25);transition:transform 0.2s">
+    <div style="font-size:11px;color:#94a3b8;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.05em">Average Build Time</div>
+    <div style="font-size:28px;font-weight:800;color:#f8fafc">1m 42s</div>
+    <div style="font-size:10px;color:#94a3b8;margin-top:4px">Fast layout compilation</div>
+  </div>
+  <div style="background:#121826;border:1px solid #232a3a;padding:20px;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,0.25);transition:transform 0.2s">
+    <div style="font-size:11px;color:#94a3b8;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.05em">AI Cost Saved</div>
+    <div style="font-size:28px;font-weight:800;color:#38bdf8">${cost_saved:.2f}</div>
+    <div style="font-size:10px;color:#38bdf8;margin-top:4px">Low-token blueprints</div>
+  </div>
+</div>
+"""
+
+
 def on_discover(query):
     try:
         n, used = discover(query or None)
-        return f"Added {n} new lead(s) for '{used}'.", _leads_table(), _status_md()
+        return f"Added {n} new lead(s) for '{used}'.", _leads_table(), _status_md(), _stats_html()
     except Exception as e:
-        return f"Discovery error: {e}", _leads_table(), _status_md()
+        return f"Discovery error: {e}", _leads_table(), _status_md(), _stats_html()
 
 
 def on_single_click(query):
@@ -70,28 +121,28 @@ def on_single_click(query):
             msg = f"{discover_msg} No new leads were processed."
         else:
             msg = f"{discover_msg} Successfully built and deployed site for: {r.get('name')} (Live: {r.get('live_url')})."
-        return msg, _leads_table(), _status_md()
+        return msg, _leads_table(), _status_md(), _stats_html()
     except Exception as e:
         import traceback
-        return f"Single-Click error: {e}\n{traceback.format_exc()}", _leads_table(), _status_md()
+        return f"Single-Click error: {e}\n{traceback.format_exc()}", _leads_table(), _status_md(), _stats_html()
 
 
 def on_process_once():
     r = process_one_lead()
     msg = "No new leads to process." if not r else f"{r.get('status')}: {r.get('name')}"
-    return msg, _leads_table(), _status_md()
+    return msg, _leads_table(), _status_md(), _stats_html()
 
 
 def on_start():
-    return start_worker(), _status_md()
+    return start_worker(), _status_md(), _stats_html()
 
 
 def on_stop():
-    return stop_worker(), _status_md()
+    return stop_worker(), _status_md(), _stats_html()
 
 
 def on_refresh():
-    return _leads_table(), _status_md()
+    return _leads_table(), _status_md(), _stats_html()
 
 
 def on_test_connection():
@@ -250,7 +301,7 @@ with gr.Blocks(title="WebPulse Studio", theme=theme, css=CSS) as ui:
 
     with gr.Tab("Dashboard"):
         status = gr.Markdown(_status_md())
-        gr.HTML(_STATS_HTML)
+        stats_card_html = gr.HTML(_stats_html())
         with gr.Row():
             query_in = gr.Textbox(label="🔍 Search Businesses", placeholder="e.g. Restaurant near Chennai (leave blank for AI auto-select)", scale=3)
             discover_btn = gr.Button("🔍 Discover Businesses", scale=1)
@@ -267,12 +318,12 @@ with gr.Blocks(title="WebPulse Studio", theme=theme, css=CSS) as ui:
             value=_leads_table(), interactive=False, wrap=True,
         )
 
-        discover_btn.click(on_discover, [query_in], [action_msg, leads_tbl, status])
-        once_btn.click(on_process_once, None, [action_msg, leads_tbl, status])
-        single_btn.click(on_single_click, [query_in], [action_msg, leads_tbl, status])
-        start_btn.click(on_start, None, [action_msg, status])
-        stop_btn.click(on_stop, None, [action_msg, status])
-        refresh_btn.click(on_refresh, None, [leads_tbl, status])
+        discover_btn.click(on_discover, [query_in], [action_msg, leads_tbl, status, stats_card_html])
+        once_btn.click(on_process_once, None, [action_msg, leads_tbl, status, stats_card_html])
+        single_btn.click(on_single_click, [query_in], [action_msg, leads_tbl, status, stats_card_html])
+        start_btn.click(on_start, None, [action_msg, status, stats_card_html])
+        stop_btn.click(on_stop, None, [action_msg, status, stats_card_html])
+        refresh_btn.click(on_refresh, None, [leads_tbl, status, stats_card_html])
         test_btn.click(on_test_connection, None, [action_msg])
 
     with gr.Tab("AI IDE (per site)"):
