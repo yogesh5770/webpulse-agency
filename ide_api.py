@@ -153,7 +153,7 @@ def register_ide_routes(app) -> None:
                 if pid:
                     # DB -> temp dir, run the disk-based agent, then dir -> DB.
                     workdir = site_store.materialize(pid)
-                    reply = agent.run_agent(workdir, instruction, on_event=lambda ev: events.put(ev))
+                    reply = agent.run_agent(workdir, instruction, on_event=lambda ev: events.put(ev), place_id=pid)
                     site_store.sync(pid, workdir)
                 else:
                     # General assistant mode when no website is created yet

@@ -117,6 +117,18 @@ def init_db() -> None:
             )
             """
         )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS chat_history (
+                place_id     TEXT NOT NULL,
+                role         TEXT NOT NULL,
+                content      TEXT NOT NULL,
+                created_at   BIGINT,
+                PRIMARY KEY (place_id, created_at)
+            )
+            """
+        )
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_chathistory_pid ON chat_history(place_id)")
 
 
 def get_state(key: str, default: str = "") -> str:
@@ -341,3 +353,26 @@ def site_storage_bytes() -> int:
 def backend_name() -> str:
     """For the dashboard: which store is active."""
     return "Postgres" if _PG else "SQLite (local file)"
+
+
+def add_chat_message(place_id: str, role: str, content: str) -> None:
+    """Record a chat message for a specific business/site project in Postgres/SQLite."""
+    import time
+    with _conn() as con:
+        cur = con.cursor()
+        cur.execute(
+            _sql("INSERT INTO chat_history (place_id, role, content, created_at) VALUES (?, ?, ?, ?)"),
+            (place_id, role, content, int(time.time() * 1000))
+        )
+
+
+def get_chat_history(place_id: str, limit: int = 50) -> list[dict]:
+    """Retrieve the sorted conversation log for a specific place_id."""
+    with _conn() as con:
+        cur = con.cursor()
+        cur.execute(
+            _sql("SELECT role, content FROM chat_history WHERE place_id = ? ORDER BY created_at ASC"),
+            (place_id,)
+        )
+        rows = _rows(cur)
+        return rows[-limit:]

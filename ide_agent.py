@@ -368,7 +368,7 @@ def _describe_action(name: str, args: dict) -> str:
 
 
 def run_agent(site_dir: str, instruction: str, max_steps: int = 24,
-              on_step=None, on_event=None) -> str:
+              on_step=None, on_event=None, place_id: str = None) -> str:
     """Run the agent loop until it stops calling tools, validating HTML and
     committing a checkpoint on success (rolling back on failure).
 
@@ -398,15 +398,22 @@ def run_agent(site_dir: str, instruction: str, max_steps: int = 24,
         with open(lead_path, "r", encoding="utf-8", errors="replace") as f:
             context = "\n\nBusiness details for this site:\n" + f.read()[:2000]
 
-    # Load persistent chat history
-    history_path = os.path.join(site_dir, "chat_history.json")
+    # Load persistent chat history (DB or Local File fallback)
+    import db
     history = []
-    if os.path.exists(history_path):
+    if place_id:
         try:
-            with open(history_path, "r", encoding="utf-8") as f:
-                history = json.load(f)
+            history = db.get_chat_history(place_id)
         except Exception:
             history = []
+    else:
+        history_path = os.path.join(site_dir, "chat_history.json")
+        if os.path.exists(history_path):
+            try:
+                with open(history_path, "r", encoding="utf-8") as f:
+                    history = json.load(f)
+            except Exception:
+                history = []
 
     messages = [{"role": "system", "content": _SYSTEM + context}]
     # Include last 10 messages from history to keep context window compact
@@ -470,13 +477,20 @@ def run_agent(site_dir: str, instruction: str, max_steps: int = 24,
 
     # Save conversation history helper
     def save_history(ans_text):
-        history.append({"role": "user", "content": instruction})
-        history.append({"role": "assistant", "content": ans_text})
-        try:
-            with open(history_path, "w", encoding="utf-8") as f:
-                json.dump(history[-50:], f, indent=2)
-        except Exception:
-            pass
+        if place_id:
+            try:
+                db.add_chat_message(place_id, "user", instruction)
+                db.add_chat_message(place_id, "assistant", ans_text)
+            except Exception:
+                pass
+        else:
+            history.append({"role": "user", "content": instruction})
+            history.append({"role": "assistant", "content": ans_text})
+            try:
+                with open(history_path, "w", encoding="utf-8") as f:
+                    json.dump(history[-50:], f, indent=2)
+            except Exception:
+                pass
 
     # Checkpoint or roll back based on the final state.
     if modified_files:
