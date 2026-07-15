@@ -29,11 +29,27 @@ def _published_count():
 
 
 def _leads_table():
+    import urllib.parse
     rows = []
     for l in db.all_leads():
+        phone = l.get("phone", "")
+        # Extract digits
+        clean_phone = "".join(c for c in phone if c.isdigit())
+        msg = l.get("message", "")
+        
+        if clean_phone and msg:
+            encoded_msg = urllib.parse.quote(msg)
+            wa_link = f"https://wa.me/{clean_phone}?text={encoded_msg}"
+            wa_btn = f"[💬 Send WhatsApp]({wa_link})"
+        else:
+            wa_btn = "-"
+            
+        live = l.get("live_url") or ""
+        live_btn = f"[↗ Open Website]({live})" if live else "-"
+        
         rows.append([
             l.get("name", ""), l.get("category", ""), l.get("phone", ""),
-            l.get("status", ""), l.get("live_url", "") or "",
+            l.get("status", ""), live_btn, wa_btn
         ])
     return rows
 
@@ -314,7 +330,8 @@ with gr.Blocks(title="WebPulse Studio", theme=theme, css=CSS) as ui:
             test_btn = gr.Button("🔌 Check Connection")
         action_msg = gr.Markdown()
         leads_tbl = gr.Dataframe(
-            headers=["Name", "Category", "Phone", "Status", "Live URL"],
+            headers=["Name", "Category", "Phone", "Status", "Live URL", "Outreach Link"],
+            datatype=["str", "str", "str", "str", "markdown", "markdown"],
             value=_leads_table(), interactive=False, wrap=True,
         )
 

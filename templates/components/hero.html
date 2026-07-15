@@ -1,17 +1,25 @@
-<section class="hero" id="home" style="display: flex; align-items: center; justify-content: center; min-height: 100vh; text-align: center; background: radial-gradient(circle at top right, hsla(var(--primary-hsl), 0.1), transparent), radial-gradient(circle at bottom left, hsla(var(--secondary-hsl), 0.05), transparent);">
-  <div style="max-width: 800px; margin-top: 40px;">
-    <h1 style="font-size: clamp(2.8rem, 6vw, 4.5rem); font-weight: 800; line-height: 1.1; margin-bottom: 1.5rem; letter-spacing: -0.02em;">
-      {{HERO_TITLE}}
+<section class="hero relative flex items-center justify-center text-center py-32 px-5 overflow-hidden" id="home" style="min-height: 100vh; background: radial-gradient(circle at top right, hsla(var(--primary-hsl), 0.08), transparent), radial-gradient(circle at bottom left, hsla(var(--secondary-hsl), 0.04), transparent);">
+  <!-- Ambient background glow -->
+  <div class="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
+  
+  <div class="relative max-w-4xl mx-auto z-10">
+    <span class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 mb-8 tracking-wide uppercase">
+      ✨ Exclusive Preview
+    </span>
+    <h1 class="text-4xl sm:text-6xl md:text-7xl font-extrabold tracking-tight text-white mb-6 leading-tight">
+      <span class="block bg-clip-text text-transparent bg-gradient-to-r from-white via-slate-100 to-indigo-300">
+        {{HERO_TITLE}}
+      </span>
     </h1>
-    <p style="font-size: clamp(1.1rem, 2vw, 1.3rem); opacity: 0.85; max-width: 600px; margin: 0 auto 2.5rem; font-weight: 400; line-height: 1.5;">
+    <p class="text-lg sm:text-xl text-slate-400 max-w-2xl mx-auto mb-10 leading-relaxed">
       {{HERO_SUBTITLE}}
     </p>
-    <div style="display: flex; gap: 1rem; justify-content: center; align-items: center;">
-      <a href="https://wa.me/{{WHATSAPP_NUMBER}}" target="_blank" class="cta-btn" style="padding: 14px 32px; font-size: 1rem;">
+    <div class="flex flex-col sm:flex-row gap-4 justify-center items-center">
+      <a href="https://wa.me/{{WHATSAPP_NUMBER}}" target="_blank" class="w-full sm:w-auto px-8 py-4 rounded-xl font-bold bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg shadow-indigo-500/20 hover:from-indigo-600 hover:to-purple-700 hover:scale-[1.03] transition-all duration-300 text-center">
         {{HERO_CTA_PRIMARY}}
       </a>
-      <a href="#services" class="btn" style="background: transparent; color: var(--text); border: 1px solid var(--border); padding: 13px 31px; border-radius: var(--radius); text-decoration: none; font-weight: 600; transition: background 0.2s;">
-        Explore Menu
+      <a href="#services" class="w-full sm:w-auto px-8 py-4 rounded-xl font-bold bg-slate-900/60 text-slate-300 border border-slate-800 hover:bg-slate-900 hover:border-slate-700 transition-all duration-300 text-center">
+        Explore Services
       </a>
     </div>
   </div>

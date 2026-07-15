@@ -58,12 +58,12 @@ def assemble_site(config: dict) -> str:
             ]
         for s in services_list:
             cards_html += f"""
-    <div class="card">
-      <h3 style="font-size: 1.3rem; font-weight: 700; margin-bottom: 0.8rem; color: var(--primary);">{s.get('title')}</h3>
-      <p style="opacity: 0.8; font-size: 0.95rem; margin-bottom: 1.5rem; min-height: 50px;">{s.get('description')}</p>
-      <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border); padding-top: 1rem;">
-        <span style="font-weight: 700; font-size: 1.15rem; color: var(--text);">{s.get('price')}</span>
-        <a href="https://wa.me/{config.get('whatsapp_number')}" target="_blank" style="font-size: 0.85rem; font-weight: 600; color: var(--primary); text-decoration: none;">Book →</a>
+    <div class="card p-8 bg-slate-900/40 backdrop-blur-md border border-slate-800/80 rounded-2xl hover:border-indigo-500/40 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-indigo-500/5">
+      <h3 class="text-xl font-bold text-indigo-400 mb-3">{s.get('title')}</h3>
+      <p class="text-slate-400 text-sm mb-6 leading-relaxed min-h-[50px]">{s.get('description')}</p>
+      <div class="flex justify-between items-center border-t border-slate-800/80 pt-4">
+        <span class="font-extrabold text-lg text-white">{s.get('price')}</span>
+        <a href="https://wa.me/{config.get('whatsapp_number')}" target="_blank" class="text-sm font-semibold text-indigo-400 hover:text-indigo-300 transition-colors flex items-center gap-1">Book Now <span class="text-xs">→</span></a>
       </div>
     </div>"""
         services_html = services_tpl.replace("{{SERVICES_TITLE}}", config.get("services_title", "Our Specialties"))
@@ -103,10 +103,10 @@ def assemble_site(config: dict) -> str:
         for r in reviews_list:
             stars = "★" * int(r.get("rating") or 5)
             cards_html += f"""
-    <div class="card" style="padding: 2rem;">
-      <div style="color: #f1c40f; font-size: 1.1rem; margin-bottom: 0.8rem;">{stars}</div>
-      <p style="font-style: italic; opacity: 0.85; margin-bottom: 1.5rem; font-size: 0.95rem;">"{r.get('text')}"</p>
-      <div style="font-weight: 700; font-size: 0.9rem; color: var(--primary);">— {r.get('author')}</div>
+    <div class="card p-8 bg-slate-900/40 backdrop-blur-md border border-slate-800/80 rounded-2xl hover:border-indigo-500/40 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-indigo-500/5">
+      <div class="text-amber-400 text-lg mb-3">{stars}</div>
+      <p class="text-slate-300 italic text-sm mb-6 leading-relaxed">"{r.get('text')}"</p>
+      <div class="font-bold text-xs text-indigo-400 tracking-wider uppercase">— {r.get('author')}</div>
     </div>"""
         reviews_html = reviews_tpl.replace("{{REVIEWS_CARDS}}", cards_html)
         sections.append(reviews_html)
