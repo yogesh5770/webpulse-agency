@@ -201,8 +201,13 @@ def _try_gemini_direct(messages, tools, temperature, max_tokens, timeout):
     clean_messages = []
     for m in messages:
         role = m.get("role")
-        content = m.get("content") or ""
-        clean_messages.append({"role": role, "content": content})
+        content = m.get("content")
+        msg_obj = {"role": role, "content": content}
+        if m.get("tool_calls"):
+            msg_obj["tool_calls"] = m["tool_calls"]
+        if m.get("tool_call_id"):
+            msg_obj["tool_call_id"] = m["tool_call_id"]
+        clean_messages.append(msg_obj)
 
     payload = {
         "model": "gemini-1.5-pro",
@@ -210,6 +215,9 @@ def _try_gemini_direct(messages, tools, temperature, max_tokens, timeout):
         "temperature": temperature,
         "max_tokens": max_tokens,
     }
+    if tools:
+        payload["tools"] = tools
+
     headers = {
         "Content-Type": "application/json",
     }
@@ -223,7 +231,10 @@ def _try_gemini_direct(messages, tools, temperature, max_tokens, timeout):
             if resp.status_code == 200:
                 result = resp.json()
                 choice = result["choices"][0]["message"]
-                return {"role": "assistant", "content": choice.get("content")}
+                out_msg = {"role": "assistant", "content": choice.get("content")}
+                if choice.get("tool_calls"):
+                    out_msg["tool_calls"] = choice["tool_calls"]
+                return out_msg
             logger.warning(f"Gemini key failed ({key[:10]}...): HTTP {resp.status_code} {resp.text[:150]}")
             last_err = f"HTTP {resp.status_code}: {resp.text[:150]}"
         except Exception as e:
