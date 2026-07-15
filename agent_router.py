@@ -210,7 +210,6 @@ def _try_gemini_direct(messages, tools, temperature, max_tokens, timeout):
         clean_messages.append(msg_obj)
 
     payload = {
-        "model": "gemini-1.5-pro",
         "messages": clean_messages,
         "temperature": temperature,
         "max_tokens": max_tokens,
@@ -218,10 +217,7 @@ def _try_gemini_direct(messages, tools, temperature, max_tokens, timeout):
     if tools:
         payload["tools"] = tools
 
-    headers = {
-        "Content-Type": "application/json",
-    }
-    
+    models_to_try = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash", "gemini-2.5-flash"]
     last_err = None
     # Rotate through all loaded keys
     for key in config.GEMINI_API_KEYS:
@@ -230,23 +226,25 @@ def _try_gemini_direct(messages, tools, temperature, max_tokens, timeout):
             "Content-Type": "application/json",
             "Authorization": f"Bearer {key}"
         }
-        try:
-            resp = requests.post(url, headers=headers, json=payload, timeout=timeout)
-            if resp.status_code == 200:
-                result = resp.json()
-                choice = result["choices"][0]["message"]
-                out_msg = {"role": "assistant", "content": choice.get("content")}
-                if choice.get("tool_calls"):
-                    out_msg["tool_calls"] = choice["tool_calls"]
-                return out_msg
-            logger.warning(f"Gemini key failed ({key[:10]}...): HTTP {resp.status_code} {resp.text[:150]}")
-            last_err = f"HTTP {resp.status_code}: {resp.text[:150]}"
-        except Exception as e:
-            logger.warning(f"Gemini key exception ({key[:10]}...): {e}")
-            last_err = str(e)
-            continue
+        for model in models_to_try:
+            payload["model"] = model
+            try:
+                resp = requests.post(url, headers=headers, json=payload, timeout=timeout)
+                if resp.status_code == 200:
+                    result = resp.json()
+                    choice = result["choices"][0]["message"]
+                    out_msg = {"role": "assistant", "content": choice.get("content")}
+                    if choice.get("tool_calls"):
+                        out_msg["tool_calls"] = choice["tool_calls"]
+                    return out_msg
+                logger.warning(f"Gemini key failed ({key[:10]}...) for model {model}: HTTP {resp.status_code} {resp.text[:150]}")
+                last_err = f"Model {model} - HTTP {resp.status_code}: {resp.text[:150]}"
+            except Exception as e:
+                logger.warning(f"Gemini key exception ({key[:10]}...) for model {model}: {e}")
+                last_err = f"Model {model} - {e}"
+                continue
 
-    raise AgentRouterError(f"All Gemini keys exhausted. Last error: {last_err}")
+    raise AgentRouterError(f"All Gemini keys and models exhausted. Last error: {last_err}")
 
 
 def _try_openai_direct(messages, tools, temperature, max_tokens, timeout):
