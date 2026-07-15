@@ -1,31 +1,49 @@
-<section class="contact" id="contact">
-  <div class="section-header">
-    <h2 class="section-title">Get In Touch</h2>
-    <p class="section-subtitle">We would love to hear from you. Visit us or reach out via WhatsApp.</p>
-  </div>
-  <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));">
-    <div style="display: flex; flex-direction: column; gap: 2rem;">
-      <div class="card" style="padding: 2rem;">
-        <h3 style="font-size: 1.3rem; font-weight: 700; margin-bottom: 1.5rem; color: var(--primary);">Contact Details</h3>
-        <p style="margin-bottom: 1rem; opacity: 0.85;">
-          <strong>📍 Address:</strong><br>{{BUSINESS_ADDRESS}}
-        </p>
-        <p style="margin-bottom: 1rem; opacity: 0.85;">
-          <strong>📞 Phone:</strong><br>{{BUSINESS_PHONE}}
-        </p>
-        <p style="opacity: 0.85;">
-          <strong>⏰ Opening Hours:</strong><br>
-          {{BUSINESS_HOURS}}
-        </p>
-      </div>
-      
-      <a href="https://wa.me/{{WHATSAPP_NUMBER}}" target="_blank" class="cta-btn" style="text-align: center; padding: 16px; font-size: 1.1rem;">
-        💬 Chat Live on WhatsApp
-      </a>
+<section class="contact py-24 px-5 relative" id="contact">
+  <div class="max-w-6xl mx-auto">
+    <div class="section-header mb-16 text-center">
+      <span class="text-xs font-bold text-indigo-400 tracking-wider uppercase mb-3 block">Location & Contact</span>
+      <h2 class="text-3xl sm:text-5xl font-extrabold text-white mb-4 leading-tight">Get In Touch</h2>
+      <p class="text-slate-400 text-sm sm:text-base max-w-xl mx-auto leading-relaxed">We would love to hear from you. Visit us or reach out via WhatsApp.</p>
     </div>
     
-    <div style="border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border); box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2); min-height: 350px; position: relative;">
-      {{MAPS_IFRAME}}
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-stretch">
+      <div class="lg:col-span-5 flex flex-col gap-8 justify-between">
+        <div class="card p-8 bg-slate-900/40 backdrop-blur-md border border-slate-800/80 rounded-2xl">
+          <h3 class="text-xl font-bold text-indigo-400 mb-6 border-b border-slate-800 pb-4">Details</h3>
+          
+          <div class="flex items-start gap-4 mb-6">
+            <span class="text-xl mt-1">📍</span>
+            <div>
+              <h4 class="font-bold text-white text-sm">Address</h4>
+              <p class="text-slate-400 text-sm mt-1 leading-relaxed">{{BUSINESS_ADDRESS}}</p>
+            </div>
+          </div>
+          
+          <div class="flex items-start gap-4 mb-6">
+            <span class="text-xl mt-1">📞</span>
+            <div>
+              <h4 class="font-bold text-white text-sm">Phone</h4>
+              <p class="text-slate-400 text-sm mt-1">{{BUSINESS_PHONE}}</p>
+            </div>
+          </div>
+          
+          <div class="flex items-start gap-4">
+            <span class="text-xl mt-1">⏰</span>
+            <div>
+              <h4 class="font-bold text-white text-sm">Opening Hours</h4>
+              <p class="text-slate-400 text-sm mt-1 leading-relaxed">{{BUSINESS_HOURS}}</p>
+            </div>
+          </div>
+        </div>
+        
+        <a href="https://wa.me/{{WHATSAPP_NUMBER}}" target="_blank" class="w-full py-4 rounded-xl font-bold bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg shadow-indigo-500/20 hover:from-indigo-600 hover:to-purple-700 hover:scale-[1.02] transition-all duration-300 text-center flex items-center justify-center gap-2">
+          💬 Chat Live on WhatsApp
+        </a>
+      </div>
+      
+      <div class="lg:col-span-7 rounded-2xl overflow-hidden border border-slate-800 shadow-2xl shadow-indigo-500/5 min-h-[380px] relative">
+        {{MAPS_IFRAME}}
+      </div>
     </div>
   </div>
 </section>
