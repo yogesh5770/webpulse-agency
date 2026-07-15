@@ -140,10 +140,9 @@ def register_ide_routes(app) -> None:
     @app.post("/ide/api/agent")
     async def run_agent_stream(req: Request):
         body = await req.json()
-        pid = _pid(body.get("site"))
+        site_id = body.get("site")
+        pid = _pid(site_id) if site_id else None
         instruction = (body.get("instruction") or "").strip()
-        if not pid:
-            return JSONResponse({"error": "site not found"}, status_code=404)
         if not instruction:
             return JSONResponse({"error": "empty instruction"}, status_code=400)
 
@@ -151,10 +150,16 @@ def register_ide_routes(app) -> None:
 
         def worker():
             try:
-                # DB -> temp dir, run the disk-based agent, then dir -> DB.
-                workdir = site_store.materialize(pid)
-                reply = agent.run_agent(workdir, instruction, on_event=lambda ev: events.put(ev))
-                site_store.sync(pid, workdir)
+                if pid:
+                    # DB -> temp dir, run the disk-based agent, then dir -> DB.
+                    workdir = site_store.materialize(pid)
+                    reply = agent.run_agent(workdir, instruction, on_event=lambda ev: events.put(ev))
+                    site_store.sync(pid, workdir)
+                else:
+                    # General assistant mode when no website is created yet
+                    import tempfile
+                    with tempfile.TemporaryDirectory() as tmpdir:
+                        reply = agent.run_agent(tmpdir, instruction, on_event=lambda ev: events.put(ev))
                 events.put({"type": "done", "reply": reply})
             except Exception as e:
                 events.put({"type": "done", "reply": f"Agent error: {e}", "error": True})

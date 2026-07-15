@@ -765,7 +765,7 @@ function addAct(container,ev){
 }
 
 async function runPrompt(instruction){
-  if(state.busy||!state.site)return;
+  if(state.busy)return;
   state.busy=true; $('#sendBtn').disabled=true;
   state.before=JSON.parse(JSON.stringify(state.content));
   
@@ -776,7 +776,7 @@ async function runPrompt(instruction){
 
   try{
     const resp=await fetch('/ide/api/agent',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({site:state.site,instruction})});
+      body:JSON.stringify({site:state.site || '',instruction})});
     const reader=resp.body.getReader(); const dec=new TextDecoder(); let buf='';
     while(true){
       const {value,done}=await reader.read(); if(done)break;
