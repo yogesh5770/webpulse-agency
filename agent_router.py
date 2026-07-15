@@ -332,48 +332,249 @@ def _try_deepseek_direct(messages, tools, temperature, max_tokens, timeout):
     raise AgentRouterError(f"All DeepSeek keys exhausted. Last error: {last_err}")
 
 
+def _try_bedrock_direct(messages, tools, temperature, max_tokens, timeout):
+    # First, check which Bedrock authentication mode to use
+    if config.AWS_BEARER_TOKEN_BEDROCK:
+        # Use Bedrock bearer token mode
+        logger.info("Using Bedrock bearer token mode")
+        
+        # Clean and convert messages to Bedrock converse API format
+        system_prompt_parts = []
+        conv = []
+        for m in messages:
+            role = m.get("role")
+            content = m.get("content") or ""
+            if role == "system":
+                system_prompt_parts.append(content)
+                continue
+            # Bedrock expects 'user' or 'assistant' roles
+            bedrock_role = "user" if role == "user" else "assistant"
+            conv.append({
+                "role": bedrock_role,
+                "content": [{"text": content}]
+            })
+        
+        # Build Bedrock converse API payload
+        native_request = {
+            "messages": conv,
+            "inferenceConfig": {
+                "temperature": temperature or 0.7,
+                "maxTokens": max_tokens or 4096
+            }
+        }
+        if system_prompt_parts:
+            native_request["system"] = [{"text": " ".join(system_prompt_parts)}]
+        
+        # Try models in order of preference: Claude 3.5 Sonnet (APAC) → Claude 3.5 Haiku (APAC) → Claude 3.5 Sonnet v2 → Claude 3.5 Sonnet v1 → Claude 3 Haiku
+        model_ids_to_try = [
+            "apac.anthropic.claude-3-5-sonnet-20241022-v2:0",
+            "apac.anthropic.claude-3-5-haiku-20241022-v1:0",
+            "anthropic.claude-3-5-sonnet-20241022-v2:0",
+            "anthropic.claude-3-5-sonnet-20240620-v1:0",
+            "anthropic.claude-3-haiku-20240307-v1:0",
+            "us.anthropic.claude-3-5-sonnet-20241022-v2:0"
+        ]
+        
+        last_error = None
+        for model_id in model_ids_to_try:
+            try:
+                logger.info(f"Trying Bedrock model (bearer token): {model_id}")
+                url = f"{config.BEDROCK_BASE_URL.rstrip('/')}/model/{model_id}/converse"
+                
+                # Bedrock bearer token uses Authorization: Bearer header
+                headers = {
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {config.AWS_BEARER_TOKEN_BEDROCK}"
+                }
+                
+                resp = requests.post(url, headers=headers, json=native_request, timeout=timeout)
+                if resp.status_code == 200:
+                    # Parse Bedrock converse API response
+                    response_json = resp.json()
+                    output_message = response_json["output"]["message"]
+                    text_content = "".join([
+                        block["text"] for block in output_message.get("content", [])
+                        if "text" in block
+                    ])
+                    return {"role": "assistant", "content": text_content}
+                
+                logger.warning(f"Bedrock bearer token model {model_id} failed: HTTP {resp.status_code} {resp.text[:150]}")
+                last_error = f"HTTP {resp.status_code}: {resp.text[:150]}"
+            except Exception as e:
+                logger.warning(f"Bedrock bearer token model {model_id} exception: {e}")
+                last_error = str(e)
+                continue
+        
+        raise AgentRouterError(f"All Bedrock bearer token models failed. Last error: {last_error}")
+    elif config.BEDROCK_API_KEY:
+        # Use Bedrock long-term API key mode
+        logger.info("Using Bedrock long-term API key mode")
+        
+        # Clean and convert messages to Bedrock converse API format
+        system_prompt_parts = []
+        conv = []
+        for m in messages:
+            role = m.get("role")
+            content = m.get("content") or ""
+            if role == "system":
+                system_prompt_parts.append(content)
+                continue
+            # Bedrock expects 'user' or 'assistant' roles
+            bedrock_role = "user" if role == "user" else "assistant"
+            conv.append({
+                "role": bedrock_role,
+                "content": [{"text": content}]
+            })
+        
+        # Build Bedrock converse API payload
+        native_request = {
+            "messages": conv,
+            "inferenceConfig": {
+                "temperature": temperature or 0.7,
+                "maxTokens": max_tokens or 4096
+            }
+        }
+        if system_prompt_parts:
+            native_request["system"] = [{"text": " ".join(system_prompt_parts)}]
+        
+        # Try models in order of preference: Claude 3.5 Sonnet (APAC) → Claude 3.5 Haiku (APAC) → Claude 3.5 Sonnet v2 → Claude 3.5 Sonnet v1 → Claude 3 Haiku
+        model_ids_to_try = [
+            "apac.anthropic.claude-3-5-sonnet-20241022-v2:0",
+            "apac.anthropic.claude-3-5-haiku-20241022-v1:0",
+            "anthropic.claude-3-5-sonnet-20241022-v2:0",
+            "anthropic.claude-3-5-sonnet-20240620-v1:0",
+            "anthropic.claude-3-haiku-20240307-v1:0",
+            "us.anthropic.claude-3-5-sonnet-20241022-v2:0"
+        ]
+        
+        last_error = None
+        for model_id in model_ids_to_try:
+            try:
+                logger.info(f"Trying Bedrock model (long-term API key): {model_id}")
+                url = f"{config.BEDROCK_BASE_URL.rstrip('/')}/model/{model_id}/converse"
+                
+                # Bedrock long-term API key uses the X-Amz-Bedrock-Api-Key header
+                headers = {
+                    "Content-Type": "application/json",
+                    "X-Amz-Bedrock-Api-Key": config.BEDROCK_API_KEY
+                }
+                
+                resp = requests.post(url, headers=headers, json=native_request, timeout=timeout)
+                if resp.status_code == 200:
+                    # Parse Bedrock converse API response
+                    response_json = resp.json()
+                    output_message = response_json["output"]["message"]
+                    text_content = "".join([
+                        block["text"] for block in output_message.get("content", [])
+                        if "text" in block
+                    ])
+                    return {"role": "assistant", "content": text_content}
+                
+                logger.warning(f"Bedrock API key model {model_id} failed: HTTP {resp.status_code} {resp.text[:150]}")
+                last_error = f"HTTP {resp.status_code}: {resp.text[:150]}"
+            except Exception as e:
+                logger.warning(f"Bedrock API key model {model_id} exception: {e}")
+                last_error = str(e)
+                continue
+        
+        raise AgentRouterError(f"All Bedrock API key models failed. Last error: {last_error}")
+    elif config.AWS_ACCESS_KEY_ID and config.AWS_SECRET_ACCESS_KEY:
+        # Use AWS credentials mode (real Bedrock)
+        logger.info("Using Bedrock AWS credentials mode")
+        import boto3
+        from botocore.config import Config
+
+        # Clean and convert messages to Bedrock format
+        system_prompt_parts = []
+        conv = []
+        for m in messages:
+            role = m.get("role")
+            content = m.get("content") or ""
+            if role == "system":
+                system_prompt_parts.append(content)
+                continue
+            # Bedrock expects 'user' or 'assistant' roles
+            bedrock_role = "user" if role == "user" else "assistant"
+            conv.append({
+                "role": bedrock_role,
+                "content": [{"text": content}]
+            })
+
+        # Create Bedrock client
+        bedrock_config = Config(
+            region_name=config.AWS_REGION or "us-east-1",
+            connect_timeout=timeout,
+            read_timeout=timeout
+        )
+        bedrock_runtime = boto3.client(
+            "bedrock-runtime",
+            aws_access_key_id=config.AWS_ACCESS_KEY_ID,
+            aws_secret_access_key=config.AWS_SECRET_ACCESS_KEY,
+            config=bedrock_config
+        )
+
+        # Build native request with correct structure
+        native_request = {
+            "messages": conv,
+            "inferenceConfig": {
+                "temperature": temperature or 0.7,
+                "maxTokens": max_tokens or 4096
+            }
+        }
+        if system_prompt_parts:
+            native_request["system"] = [{"text": " ".join(system_prompt_parts)}]
+        
+        # Try models in order of preference: Claude 3.5 Sonnet (APAC) → Claude 3.5 Haiku (APAC) → Claude 3.5 Sonnet v2 → Claude 3.5 Sonnet v1 → Claude 3 Haiku
+        model_ids_to_try = [
+            "apac.anthropic.claude-3-5-sonnet-20241022-v2:0",
+            "apac.anthropic.claude-3-5-haiku-20241022-v1:0",
+            "anthropic.claude-3-5-sonnet-20241022-v2:0",
+            "anthropic.claude-3-5-sonnet-20240620-v1:0",
+            "anthropic.claude-3-haiku-20240307-v1:0",
+            "us.anthropic.claude-3-5-sonnet-20241022-v2:0"
+        ]
+        
+        last_error = None
+        for model_id in model_ids_to_try:
+            try:
+                logger.info(f"Trying Bedrock model (AWS): {model_id}")
+                # Invoke Bedrock model using converse API
+                response = bedrock_runtime.converse(
+                    modelId=model_id,
+                    **native_request
+                )
+                
+                # Parse response
+                output_message = response["output"]["message"]
+                text_content = "".join([
+                    block["text"] for block in output_message.get("content", [])
+                    if "text" in block
+                ])
+                
+                return {"role": "assistant", "content": text_content}
+            except Exception as e:
+                logger.warning(f"Bedrock AWS model {model_id} failed: {e}")
+                last_error = e
+                continue
+        
+        raise AgentRouterError(f"All Bedrock AWS models failed. Last error: {last_error}")
+    else:
+        raise AgentRouterError("Neither Bedrock API key nor AWS credentials set.")
+
+
 # ---- Public Entrypoint with Failover Router ----
 
 def chat(messages, tools=None, temperature=0.7, max_tokens=8000, timeout=25):
-    """Sends chat request. Retries and fails over across active providers.
-    Prioritizes Gemini Direct (which offers a robust free tier) if the key is present.
-    """
-    providers = []
-    # If Gemini direct key is set, prioritize it for the free tier
-    if config.GEMINI_API_KEY:
-        providers.append(("Gemini Direct", _try_gemini_direct))
-        
-    # Add other providers
-    if config.DEEPSEEK_API_KEY:
-        providers.append(("DeepSeek Direct", _try_deepseek_direct))
-    if config.AGENTROUTER_API_KEY:
-        providers.append(("AgentRouter", _try_agent_router))
-    if config.ANTHROPIC_API_KEY:
-        providers.append(("Anthropic Direct", _try_anthropic_direct))
-    if config.OPENAI_API_KEY:
-        providers.append(("OpenAI Direct", _try_openai_direct))
-
-    # Fallback to check all if none are explicitly matching active flags
-    if not providers:
-        providers = [
-            ("Gemini Direct", _try_gemini_direct),
-            ("DeepSeek Direct", _try_deepseek_direct),
-            ("AgentRouter", _try_agent_router),
-            ("Anthropic Direct", _try_anthropic_direct),
-            ("OpenAI Direct", _try_openai_direct)
-        ]
-
-    last_error = None
-    for name, method in providers:
-        try:
-            logger.info(f"Attempting API call using {name}...")
-            return method(messages, tools, temperature, max_tokens, timeout)
-        except Exception as e:
-            logger.warning(f"Provider {name} failed: {e}")
-            last_error = str(e)
-            continue
-
-    raise AgentRouterError(f"All AI providers failed. Last error: {last_error}")
+    """Sends chat request using ONLY Bedrock (per user request)."""
+    if not (config.AWS_BEARER_TOKEN_BEDROCK or config.BEDROCK_API_KEY or (config.AWS_ACCESS_KEY_ID and config.AWS_SECRET_ACCESS_KEY)):
+        raise AgentRouterError("Neither Bedrock bearer token, API key, nor AWS credentials set.")
+    
+    try:
+        logger.info("Attempting API call using Bedrock Direct...")
+        return _try_bedrock_direct(messages, tools, temperature, max_tokens, timeout)
+    except Exception as e:
+        logger.error(f"Bedrock Direct failed: {e}")
+        raise AgentRouterError(f"Bedrock failed: {e}")
 
 
 def chat_text(messages, **kw):
