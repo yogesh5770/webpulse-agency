@@ -61,6 +61,21 @@ def on_discover(query):
         return f"Discovery error: {e}", _leads_table(), _status_md()
 
 
+def on_single_click(query):
+    try:
+        n, used = discover(query or None)
+        discover_msg = f"Added {n} new lead(s) for '{used}'."
+        r = process_one_lead()
+        if not r:
+            msg = f"{discover_msg} No new leads were processed."
+        else:
+            msg = f"{discover_msg} Successfully built and deployed site for: {r.get('name')} (Live: {r.get('live_url')})."
+        return msg, _leads_table(), _status_md()
+    except Exception as e:
+        import traceback
+        return f"Single-Click error: {e}\n{traceback.format_exc()}", _leads_table(), _status_md()
+
+
 def on_process_once():
     r = process_one_lead()
     msg = "No new leads to process." if not r else f"{r.get('status')}: {r.get('name')}"
@@ -151,6 +166,7 @@ with gr.Blocks(title="Lead → Website Automation") as ui:
             query_in = gr.Textbox(label="Search query (leave blank = AI picks one automatically)", placeholder="blank = AI auto-generates a fresh query", scale=3)
             discover_btn = gr.Button("🔎 Discover leads", scale=1)
             once_btn = gr.Button("⚙️ Build next site", scale=1)
+            single_btn = gr.Button("⚡ Single-Click Run", variant="primary", scale=1)
         with gr.Row():
             start_btn = gr.Button("▶️ Start 24/7 worker", variant="primary")
             stop_btn = gr.Button("⏹️ Stop worker")
@@ -164,6 +180,7 @@ with gr.Blocks(title="Lead → Website Automation") as ui:
 
         discover_btn.click(on_discover, [query_in], [action_msg, leads_tbl, status])
         once_btn.click(on_process_once, None, [action_msg, leads_tbl, status])
+        single_btn.click(on_single_click, [query_in], [action_msg, leads_tbl, status])
         start_btn.click(on_start, None, [action_msg, status])
         stop_btn.click(on_stop, None, [action_msg, status])
         refresh_btn.click(on_refresh, None, [leads_tbl, status])
