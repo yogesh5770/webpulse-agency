@@ -48,6 +48,11 @@ def find_leads(query: str, max_results: int) -> list[dict]:
         location = query.split(" in ")[-1].strip()
 
     coords = get_coords(location)
+    if not coords and "," in location:
+        district_fallback = location.split(",")[-1].strip()
+        print(f"Full location geocoding failed. Trying district fallback: {district_fallback}...")
+        coords = get_coords(district_fallback)
+
     if not coords:
         print("Could not resolve location coordinates. Activating simulation fallback...")
         return _generate_mock_leads(query, max_results)
