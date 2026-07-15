@@ -62,6 +62,8 @@ SITES_DIR = os.path.join(os.path.dirname(__file__), "sites")
 # Backups / Additional Providers
 GEMINI_API_KEY = _get("GEMINI_API_KEY")
 GEMINI_API_KEYS = [k.strip() for k in GEMINI_API_KEY.split(",") if k.strip()] if GEMINI_API_KEY else []
+DEEPSEEK_API_KEY = _get("DEEPSEEK_API_KEY")
+DEEPSEEK_API_KEYS = [k.strip() for k in DEEPSEEK_API_KEY.split(",") if k.strip()] if DEEPSEEK_API_KEY else []
 ANTHROPIC_API_KEY = _get("ANTHROPIC_API_KEY")
 OPENAI_API_KEY = _get("OPENAI_API_KEY")
 
@@ -74,6 +76,7 @@ def missing_keys() -> list[str]:
     ai_keys = [
         AGENTROUTER_API_KEY,
         GEMINI_API_KEY,
+        DEEPSEEK_API_KEY,
         ANTHROPIC_API_KEY,
         OPENAI_API_KEY
     ]
@@ -85,5 +88,5 @@ def missing_keys() -> list[str]:
     }
     missing = [k for k, v in required.items() if not v]
     if not has_ai:
-        missing.append("ANY_AI_API_KEY (AGENTROUTER_API_KEY, GEMINI_API_KEY, ANTHROPIC_API_KEY, or OPENAI_API_KEY)")
+        missing.append("ANY_AI_API_KEY (AGENTROUTER_API_KEY, GEMINI_API_KEY, DEEPSEEK_API_KEY, ANTHROPIC_API_KEY, or OPENAI_API_KEY)")
     return missing

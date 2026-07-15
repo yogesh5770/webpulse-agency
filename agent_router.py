@@ -281,6 +281,57 @@ def _try_openai_direct(messages, tools, temperature, max_tokens, timeout):
     raise AgentRouterError(f"OpenAI HTTP {resp.status_code}: {resp.text[:300]}")
 
 
+def _try_deepseek_direct(messages, tools, temperature, max_tokens, timeout):
+    if not config.DEEPSEEK_API_KEYS:
+        raise AgentRouterError("DeepSeek direct keys not set.")
+
+    # Clean OpenAI-compatible messages
+    clean_messages = []
+    for m in messages:
+        role = m.get("role")
+        content = m.get("content")
+        msg_obj = {"role": role, "content": content}
+        if m.get("tool_calls"):
+            msg_obj["tool_calls"] = m["tool_calls"]
+        if m.get("tool_call_id"):
+            msg_obj["tool_call_id"] = m["tool_call_id"]
+        clean_messages.append(msg_obj)
+
+    payload = {
+        "model": "deepseek-chat",
+        "messages": clean_messages,
+        "temperature": temperature,
+        "max_tokens": min(max_tokens or 4096, 4096),
+    }
+    if tools:
+        payload["tools"] = tools
+
+    last_err = None
+    for key in config.DEEPSEEK_API_KEYS:
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {key}"
+        }
+        url = "https://api.deepseek.com/chat/completions"
+        try:
+            resp = requests.post(url, headers=headers, json=payload, timeout=timeout)
+            if resp.status_code == 200:
+                result = resp.json()
+                choice = result["choices"][0]["message"]
+                out_msg = {"role": "assistant", "content": choice.get("content")}
+                if choice.get("tool_calls"):
+                    out_msg["tool_calls"] = choice["tool_calls"]
+                return out_msg
+            logger.warning(f"DeepSeek key failed: HTTP {resp.status_code} {resp.text[:150]}")
+            last_err = f"HTTP {resp.status_code}: {resp.text[:150]}"
+        except Exception as e:
+            logger.warning(f"DeepSeek key exception: {e}")
+            last_err = str(e)
+            continue
+
+    raise AgentRouterError(f"All DeepSeek keys exhausted. Last error: {last_err}")
+
+
 # ---- Public Entrypoint with Failover Router ----
 
 def chat(messages, tools=None, temperature=0.7, max_tokens=8000, timeout=25):
@@ -293,6 +344,8 @@ def chat(messages, tools=None, temperature=0.7, max_tokens=8000, timeout=25):
         providers.append(("Gemini Direct", _try_gemini_direct))
         
     # Add other providers
+    if config.DEEPSEEK_API_KEY:
+        providers.append(("DeepSeek Direct", _try_deepseek_direct))
     if config.AGENTROUTER_API_KEY:
         providers.append(("AgentRouter", _try_agent_router))
     if config.ANTHROPIC_API_KEY:
@@ -304,6 +357,7 @@ def chat(messages, tools=None, temperature=0.7, max_tokens=8000, timeout=25):
     if not providers:
         providers = [
             ("Gemini Direct", _try_gemini_direct),
+            ("DeepSeek Direct", _try_deepseek_direct),
             ("AgentRouter", _try_agent_router),
             ("Anthropic Direct", _try_anthropic_direct),
             ("OpenAI Direct", _try_openai_direct)
