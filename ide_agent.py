@@ -405,6 +405,7 @@ def run_agent(site_dir: str, instruction: str, max_steps: int = 24,
 
     final = "Reached step limit before finishing."
     validated_once = False
+    modified_files = False
     for _ in range(max_steps):
         msg = chat(messages, tools=TOOLS, temperature=0.3, max_tokens=8000)
         messages.append(msg)
@@ -415,15 +416,16 @@ def run_agent(site_dir: str, instruction: str, max_steps: int = 24,
             emit({"type": "assistant", "text": msg["content"]})
 
         if not tool_calls:
-            problems = _validate_html(site_dir)
-            if problems and not validated_once:
-                validated_once = True
-                emit({"type": "status", "message": "Validating HTML and fixing issues…"})
-                messages.append({
-                    "role": "user",
-                    "content": "Validation found issues, fix them before finishing: " + problems,
-                })
-                continue
+            if modified_files:
+                problems = _validate_html(site_dir)
+                if problems and not validated_once:
+                    validated_once = True
+                    emit({"type": "status", "message": "Validating HTML and fixing issues…"})
+                    messages.append({
+                        "role": "user",
+                        "content": "Validation found issues, fix them before finishing: " + problems,
+                    })
+                    continue
             final = (msg.get("content") or "Done.").strip()
             break
 
@@ -434,6 +436,9 @@ def run_agent(site_dir: str, instruction: str, max_steps: int = 24,
             except (json.JSONDecodeError, TypeError):
                 args = {}
             name = fn["name"]
+
+            if name in ("edit_file", "write_file", "create_file", "delete_file", "rename_file", "run_command"):
+                modified_files = True
 
             if name == "update_plan":
                 emit({"type": "plan", "steps": args.get("steps", [])})
@@ -453,13 +458,14 @@ def run_agent(site_dir: str, instruction: str, max_steps: int = 24,
             })
 
     # Checkpoint or roll back based on the final state.
-    problems = _validate_html(site_dir)
-    if problems:
-        _rollback(site_dir)
-        emit({"type": "status", "message": "Rolled back to last good state"})
-        return f"⚠️ Change rolled back -- site left in last good state. Issue: {problems}"
-    if _has_changes(site_dir):
-        _commit(site_dir, f"agent: {instruction[:60]}")
-        emit({"type": "status", "message": "Saved checkpoint (git)"})
-        return final + "\n\n✅ Saved a checkpoint (git). You can undo anytime."
+    if modified_files:
+        problems = _validate_html(site_dir)
+        if problems:
+            _rollback(site_dir)
+            emit({"type": "status", "message": "Rolled back to last good state"})
+            return f"⚠️ Change rolled back -- site left in last good state. Issue: {problems}"
+        if _has_changes(site_dir):
+            _commit(site_dir, f"agent: {instruction[:60]}")
+            emit({"type": "status", "message": "Saved checkpoint (git)"})
+            return final + "\n\n✅ Saved a checkpoint (git). You can undo anytime."
     return final + "\n\n(No file changes were made.)"
