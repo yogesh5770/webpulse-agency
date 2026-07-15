@@ -1,7 +1,9 @@
 import os
 import re
+import theme_engine
 
 TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), "templates")
+
 
 def _read_tpl(name: str) -> str:
     path = os.path.join(TEMPLATES_DIR, name)
@@ -10,12 +12,16 @@ def _read_tpl(name: str) -> str:
     with open(path, "r", encoding="utf-8") as f:
         return f.read()
 
+
 def assemble_site(config: dict) -> str:
     """Assembles the modular component sections into a premium, consistent landing page."""
     # Load layout shell
     layout = _read_tpl("layout.html")
     if not layout:
         raise ValueError("layout.html template not found")
+
+    # Get animation pack config
+    anim_pack = theme_engine.get_animation_pack(config.get("animation_pack", "modern"))
 
     # Gather sections
     sections = []
@@ -79,7 +85,7 @@ def assemble_site(config: dict) -> str:
         for img in gallery_list:
             items_html += f"""
     <div style="aspect-ratio: 1; border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border); transition: transform 0.2s;">
-      <img src="{img}" alt="Gallery Item" style="width: 100%; height: 100%; object-fit: cover; transition: transform 0.3s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+      <img src="{img}" alt="Gallery Item" style="width: 100%; height: 100%; object-fit: cover; transition: transform 0.3s;" onmouseover="this.style.transform='scale({anim_pack['card_hover_scale']})'" onmouseout="this.style.transform='scale(1)'">
     </div>"""
         gallery_html = gallery_tpl.replace("{{GALLERY_ITEMS}}", items_html)
         sections.append(gallery_html)
@@ -123,7 +129,7 @@ def assemble_site(config: dict) -> str:
         map_html = config.get("maps_iframe", "")
         if not map_html:
             # Fallback Google Maps iframe with embed search
-            q = re.sub(r'\s+', '+', config.get('business_address', ''))
+            q = re.sub(r"\s+", "+", config.get("business_address", ""))
             map_html = f'<iframe width="100%" height="100%" frameborder="0" style="border:0; position:absolute; inset:0;" src="https://maps.google.com/maps?q={q}&t=&z=14&ie=UTF8&iwloc=&output=embed" allowfullscreen></iframe>'
         contact_html = contact_html.replace("{{MAPS_IFRAME}}", map_html)
         sections.append(contact_html)
@@ -133,6 +139,8 @@ def assemble_site(config: dict) -> str:
     
     # Process Layout placeholders
     html = layout
+    default_title = f"{config.get('business_name', 'Local Business')} | {config.get('business_category', 'Specialty Services')}"
+    html = html.replace("{{SEO_TITLE}}", config.get("seo_title", default_title))
     html = html.replace("{{BUSINESS_NAME}}", config.get("business_name", "Local Business"))
     html = html.replace("{{BUSINESS_CATEGORY}}", config.get("business_category", "Specialty Services"))
     html = html.replace("{{SEO_DESCRIPTION}}", config.get("seo_description", f"Premium services and highlights at {config.get('business_name')}."))
@@ -145,10 +153,16 @@ def assemble_site(config: dict) -> str:
     # Design HSL theme tokens
     html = html.replace("{{PRIMARY_HSL}}", config.get("primary_hsl", "215 90% 50%"))
     html = html.replace("{{SECONDARY_HSL}}", config.get("secondary_hsl", "185 85% 45%"))
-    html = html.replace("{{BG_HSL}}", config.get("bg_hsl", "225 25% 9%")) # Default premium dark mode
+    html = html.replace("{{BG_HSL}}", config.get("bg_hsl", "225 25% 9%"))
     html = html.replace("{{TEXT_HSL}}", config.get("text_hsl", "0 0% 95%"))
     html = html.replace("{{ACCENT_HSL}}", config.get("accent_hsl", "215 90% 50%"))
     html = html.replace("{{RADIUS}}", config.get("radius", "12px"))
+    
+    # Animation Pack Config Placeholders
+    html = html.replace("{{ANIM_HERO_DURATION}}", str(anim_pack["hero_duration"]))
+    html = html.replace("{{ANIM_HERO_EASE}}", anim_pack["hero_ease"])
+    html = html.replace("{{ANIM_SCROLL_EASE}}", anim_pack["scroll_ease"])
+    html = html.replace("{{ANIM_SCROLL_DURATION}}", str(anim_pack["scroll_duration"]))
     
     # WhatsApp details
     html = html.replace("{{WHATSAPP_NUMBER}}", config.get("whatsapp_number", ""))

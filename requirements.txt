@@ -3,6 +3,7 @@ requests>=2.32.3
 python-dotenv>=1.0.1
 fastapi>=0.110.0
 uvicorn>=0.29.0
+boto3>=1.34.0  # AWS SDK for Bedrock
 # optional: better Cloudflare Pages asset dedup (REST deploy path)
 blake3>=0.4.1
 # needed only when DATABASE_URL (Postgres) is set

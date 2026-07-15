@@ -3,15 +3,28 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{{BUSINESS_NAME}} | {{BUSINESS_CATEGORY}}</title>
+  <title>{{SEO_TITLE}}</title>
   <meta name="description" content="{{SEO_DESCRIPTION}}">
   <meta name="keywords" content="{{SEO_KEYWORDS}}">
+  
+  <!-- Open Graph / Facebook -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="{{SEO_TITLE}}">
+  <meta property="og:description" content="{{SEO_DESCRIPTION}}">
+  <meta property="og:locale" content="en_US">
+  
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="{{SEO_TITLE}}">
+  <meta name="twitter:description" content="{{SEO_DESCRIPTION}}">
+  
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family={{FONTS_IMPORT}}&display=swap" rel="stylesheet">
+  
   <!-- CDNs: Tailwind v4 + GSAP -->
-  <script src="https://unpkg.com/@tailwindcss/browser@4"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
   
   <style>
@@ -30,8 +43,8 @@
       --text: hsl(var(--text-hsl));
       --accent: hsl(var(--accent-hsl));
       
-      --card-bg: hsla(0, 0%, 100%, 0.03);
-      --border: hsla(0, 0%, 100%, 0.08);
+      --card-bg: hsla(0, 0%, 100%, 0.05);
+      --border: hsla(0, 0%, 100%, 0.1);
     }
     
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -42,6 +55,20 @@
       line-height: 1.6;
       -webkit-font-smoothing: antialiased;
       overflow-x: hidden;
+    }
+    
+    /* Skip link for accessibility */
+    .skip-link {
+      position: absolute;
+      top: -100%;
+      left: 0;
+      background: var(--primary);
+      color: white;
+      padding: 1rem;
+      z-index: 9999;
+    }
+    .skip-link:focus {
+      top: 0;
     }
     
     /* Premium Glassmorphic Navigation */
@@ -69,7 +96,11 @@
       -webkit-text-fill-color: transparent;
       text-decoration: none;
     }
-    .nav-links { display: flex; gap: 2rem; list-style: none; }
+    .nav-links {
+      display: flex;
+      gap: 2rem;
+      list-style: none;
+    }
     .nav-links a {
       color: var(--text);
       text-decoration: none;
@@ -78,7 +109,64 @@
       opacity: 0.8;
       transition: opacity 0.2s;
     }
-    .nav-links a:hover { opacity: 1; color: var(--primary); }
+    .nav-links a:hover, .nav-links a:focus {
+      opacity: 1;
+      color: var(--primary);
+      outline: 2px solid var(--primary);
+      outline-offset: 2px;
+    }
+    
+    /* Mobile Hamburger Menu */
+    .hamburger {
+      display: none;
+      flex-direction: column;
+      gap: 5px;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      padding: 0.5rem;
+    }
+    .hamburger span {
+      display: block;
+      width: 25px;
+      height: 3px;
+      background: var(--text);
+      transition: all 0.3s;
+    }
+    .hamburger.active span:nth-child(1) {
+      transform: rotate(45deg) translate(5px, 5px);
+    }
+    .hamburger.active span:nth-child(2) {
+      opacity: 0;
+    }
+    .hamburger.active span:nth-child(3) {
+      transform: rotate(-45deg) translate(7px, -6px);
+    }
+    
+    /* Mobile Menu */
+    .mobile-menu {
+      display: none;
+      position: fixed;
+      top: 72px;
+      left: 0;
+      width: 100%;
+      height: calc(100vh - 72px);
+      background: hsla(var(--bg-hsl), 0.98);
+      backdrop-filter: blur(12px);
+      padding: 2rem;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+    .mobile-menu.active {
+      display: flex;
+    }
+    .mobile-menu a {
+      font-size: 1.25rem;
+      color: var(--text);
+      text-decoration: none;
+      padding: 0.75rem 0;
+      border-bottom: 1px solid var(--border);
+    }
     
     .cta-btn {
       background: linear-gradient(135deg, var(--primary), var(--secondary));
@@ -92,16 +180,18 @@
       cursor: pointer;
       transition: transform 0.2s, box-shadow 0.2s;
     }
-    .cta-btn:hover {
+    .cta-btn:hover, .cta-btn:focus {
       transform: translateY(-2px);
       box-shadow: 0 8px 24px rgba(var(--primary-hsl), 0.3);
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
     }
     
     /* Layout Sections */
     section { padding: 100px 5%; position: relative; }
     .section-header { text-align: center; margin-bottom: 60px; }
     .section-title {
-      font-size: 2.5rem;
+      font-size: clamp(2rem, 5vw, 3.5rem);
       font-weight: 800;
       margin-bottom: 1rem;
       background: linear-gradient(135deg, var(--text), var(--primary));
@@ -109,21 +199,21 @@
       -webkit-text-fill-color: transparent;
     }
     .section-subtitle {
-      font-size: 1.1rem;
+      font-size: clamp(1rem, 2vw, 1.25rem);
       opacity: 0.7;
       max-width: 600px;
       margin: 0 auto;
     }
     
     /* Grid system */
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 2rem; }
     
     /* Premium Cards */
     .card {
       background: var(--card-bg);
       border: 1px solid var(--border);
       border-radius: var(--radius);
-      padding: 2.5rem;
+      padding: 2rem;
       transition: transform 0.3s, border-color 0.3s, box-shadow 0.3s;
     }
     .card:hover {
@@ -139,7 +229,7 @@
       padding: 60px 5% 40px;
       text-align: center;
     }
-    .footer-links { display: flex; justify-content: center; gap: 2rem; margin-bottom: 2rem; list-style: none; }
+    .footer-links { display: flex; justify-content: center; gap: 2rem; margin-bottom: 2rem; list-style: none; flex-wrap: wrap; }
     .footer-links a { color: var(--text); opacity: 0.7; text-decoration: none; }
     .footer-links a:hover { opacity: 1; }
     .footer-copy { font-size: 0.85rem; opacity: 0.5; }
@@ -164,51 +254,100 @@
       transition: transform 0.3s;
     }
     .whatsapp-float:hover { transform: scale(1.1); }
+    
+    /* Responsive Design */
+    @media (max-width: 1024px) {
+      .nav-links { display: none; }
+      .hamburger { display: flex; }
+      .desktop-cta { display: none; }
+    }
+    @media (min-width: 1025px) {
+      .desktop-cta { display: inline-block; }
+    }
   </style>
 </head>
 <body>
+  <!-- Skip Link for Accessibility -->
+  <a href="#main-content" class="skip-link">Skip to main content</a>
 
   <!-- Navigation -->
-  <nav class="navbar">
-    <a href="#" class="logo">{{BUSINESS_NAME}}</a>
-    <ul class="nav-links">
-      <li><a href="#about">About</a></li>
-      <li><a href="#services">Services</a></li>
-      <li><a href="#gallery">Gallery</a></li>
-      <li><a href="#contact">Contact</a></li>
+  <nav class="navbar" role="navigation" aria-label="Main navigation">
+    <a href="#" class="logo" aria-label="{{BUSINESS_NAME}}">{{BUSINESS_NAME}}</a>
+    <ul class="nav-links" role="menubar">
+      <li role="none"><a href="#about" role="menuitem">About</a></li>
+      <li role="none"><a href="#services" role="menuitem">Services</a></li>
+      <li role="none"><a href="#gallery" role="menuitem">Gallery</a></li>
+      <li role="none"><a href="#contact" role="menuitem">Contact</a></li>
     </ul>
-    <a href="https://wa.me/{{WHATSAPP_NUMBER}}" class="cta-btn" target="_blank">Book Now</a>
+    <a href="https://wa.me/{{WHATSAPP_NUMBER}}" class="cta-btn desktop-cta" target="_blank" rel="noopener">Book Now</a>
+    <button class="hamburger" id="hamburger" aria-label="Toggle menu" aria-expanded="false" aria-controls="mobile-menu">
+      <span></span>
+      <span></span>
+      <span></span>
+    </button>
   </nav>
 
-  <!-- Dynamic Compiled Sections -->
-  {{COMPILER_SECTIONS}}
+  <!-- Mobile Menu -->
+  <div class="mobile-menu" id="mobile-menu" role="dialog" aria-modal="true" aria-label="Mobile navigation menu">
+    <a href="#about" onclick="toggleMenu()">About</a>
+    <a href="#services" onclick="toggleMenu()">Services</a>
+    <a href="#gallery" onclick="toggleMenu()">Gallery</a>
+    <a href="#contact" onclick="toggleMenu()">Contact</a>
+    <a href="https://wa.me/{{WHATSAPP_NUMBER}}" class="cta-btn" target="_blank" rel="noopener" onclick="toggleMenu()">Book Now</a>
+  </div>
+
+  <!-- Main Content -->
+  <main id="main-content">
+    {{COMPILER_SECTIONS}}
+  </main>
 
   <!-- Footer -->
-  <footer class="footer">
+  <footer class="footer" role="contentinfo">
     <div style="margin-bottom: 2rem;">
-      <a href="#" class="logo">{{BUSINESS_NAME}}</a>
+      <a href="#" class="logo" aria-label="{{BUSINESS_NAME}}">{{BUSINESS_NAME}}</a>
     </div>
-    <ul class="footer-links">
-      <li><a href="#about">About Us</a></li>
-      <li><a href="#services">Our Services</a></li>
-      <li><a href="#gallery">Photo Gallery</a></li>
-      <li><a href="#contact">Contact Us</a></li>
+    <ul class="footer-links" role="list">
+      <li role="listitem"><a href="#about">About Us</a></li>
+      <li role="listitem"><a href="#services">Our Services</a></li>
+      <li role="listitem"><a href="#gallery">Photo Gallery</a></li>
+      <li role="listitem"><a href="#contact">Contact Us</a></li>
     </ul>
     <div class="footer-copy">
       &copy; <script>document.write(new Date().getFullYear())</script> {{BUSINESS_NAME}}. All Rights Reserved.
     </div>
   </footer>
 
-  <a href="https://wa.me/{{WHATSAPP_NUMBER}}" class="whatsapp-float" target="_blank" aria-label="Chat on WhatsApp">💬</a>
+  <a href="https://wa.me/{{WHATSAPP_NUMBER}}" class="whatsapp-float" target="_blank" rel="noopener" aria-label="Chat on WhatsApp">💬</a>
 
   <!-- GSAP & Scroll Reveal Animations -->
   <script>
+    // Mobile Menu Toggle
+    function toggleMenu() {
+      const hamburger = document.getElementById('hamburger');
+      const mobileMenu = document.getElementById('mobile-menu');
+      hamburger.classList.toggle('active');
+      mobileMenu.classList.toggle('active');
+      const isExpanded = hamburger.classList.contains('active');
+      hamburger.setAttribute('aria-expanded', isExpanded.toString());
+    }
+    
+    document.getElementById('hamburger').addEventListener('click', toggleMenu);
+    
+    // Close mobile menu when clicking outside
+    document.addEventListener('click', (e) => {
+      const hamburger = document.getElementById('hamburger');
+      const mobileMenu = document.getElementById('mobile-menu');
+      if (!hamburger.contains(e.target) && !mobileMenu.contains(e.target) && mobileMenu.classList.contains('active')) {
+        toggleMenu();
+      }
+    });
+
     // GSAP Hero Reveal
     window.addEventListener('DOMContentLoaded', () => {
       if (typeof gsap !== 'undefined') {
-        gsap.from(".hero h1", { duration: 1.2, y: 50, opacity: 0, ease: "power4.out" });
-        gsap.from(".hero p", { duration: 1.2, y: 30, opacity: 0, delay: 0.2, ease: "power4.out" });
-        gsap.from(".hero .cta-btn, .hero .btn", { duration: 1, scale: 0.9, opacity: 0, delay: 0.4, stagger: 0.1, ease: "back.out(1.7)" });
+        gsap.from(".hero h1", { duration: {{ANIM_HERO_DURATION}}, y: 50, opacity: 0, ease: "{{ANIM_HERO_EASE}}" });
+        gsap.from(".hero p", { duration: {{ANIM_HERO_DURATION}}, y: 30, opacity: 0, delay: 0.2, ease: "{{ANIM_HERO_EASE}}" });
+        gsap.from(".hero .cta-btn, .hero .btn", { duration: {{ANIM_HERO_DURATION}} * 0.8, scale: 0.9, opacity: 0, delay: 0.4, stagger: 0.1, ease: "back.out(1.7)" });
       }
       
       // Scroll Reveal Observer
@@ -226,7 +365,7 @@
         if (!sec.classList.contains('hero')) {
           sec.style.opacity = 0;
           sec.style.transform = 'translateY(40px)';
-          sec.style.transition = 'opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1)';
+          sec.style.transition = `opacity {{ANIM_SCROLL_DURATION}}s {{ANIM_SCROLL_EASE}}, transform {{ANIM_SCROLL_DURATION}}s {{ANIM_SCROLL_EASE}}`;
           observer.observe(sec);
         }
       });

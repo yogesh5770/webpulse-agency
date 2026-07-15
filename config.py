@@ -66,6 +66,13 @@ DEEPSEEK_API_KEY = _get("DEEPSEEK_API_KEY")
 DEEPSEEK_API_KEYS = [k.strip() for k in DEEPSEEK_API_KEY.split(",") if k.strip()] if DEEPSEEK_API_KEY else []
 ANTHROPIC_API_KEY = _get("ANTHROPIC_API_KEY")
 OPENAI_API_KEY = _get("OPENAI_API_KEY")
+# Bedrock: either AWS credentials OR API key OR bearer token (for proxy)
+BEDROCK_API_KEY = _get("BEDROCK_API_KEY")
+AWS_BEARER_TOKEN_BEDROCK = _get("AWS_BEARER_TOKEN_BEDROCK")
+BEDROCK_BASE_URL = _get("BEDROCK_BASE_URL", "https://bedrock-runtime.us-east-1.amazonaws.com")
+AWS_ACCESS_KEY_ID = _get("AWS_ACCESS_KEY_ID")
+AWS_SECRET_ACCESS_KEY = _get("AWS_SECRET_ACCESS_KEY")
+AWS_REGION = _get("AWS_REGION", "us-east-1")
 
 
 def missing_keys() -> list[str]:
@@ -78,7 +85,10 @@ def missing_keys() -> list[str]:
         GEMINI_API_KEY,
         DEEPSEEK_API_KEY,
         ANTHROPIC_API_KEY,
-        OPENAI_API_KEY
+        OPENAI_API_KEY,
+        AWS_ACCESS_KEY_ID,  # Bedrock uses AWS credentials
+        BEDROCK_API_KEY,  # Bedrock uses API key for proxy
+        AWS_BEARER_TOKEN_BEDROCK  # Bedrock uses bearer token for proxy
     ]
     has_ai = any(ai_keys)
     required = {
