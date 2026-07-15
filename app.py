@@ -147,6 +147,64 @@ def on_send_sim_message(selected_site, message_text):
 
 # ---------- UI --------------------------------------------------------
 
+theme = gr.themes.Soft(
+    primary_hue="indigo",
+    secondary_hue="purple",
+    neutral_hue="slate",
+    font=[gr.themes.GoogleFont("Plus Jakarta Sans"), "ui-sans-serif", "system-ui", "sans-serif"],
+).set(
+    body_background_fill="#090d16",
+    block_background_fill="#111625",
+    block_border_width="1px",
+    block_border_color="#1f293d",
+    button_primary_background_fill="linear-gradient(135deg, #6366f1, #a855f7)",
+    button_primary_text_color="#ffffff",
+    button_primary_background_fill_hover="linear-gradient(135deg, #4f46e5, #9333ea)",
+    input_background_fill="#181e30",
+    input_border_color="#2b364f"
+)
+
+CSS = """
+#heading {
+    background: linear-gradient(135deg, #a78bfa, #6366f1);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    font-weight: 900;
+    margin-bottom: 1rem;
+    letter-spacing: -0.025em;
+}
+div.tabs button.selected {
+    background: linear-gradient(135deg, #6366f1, #a855f7) !important;
+    color: white !important;
+    border-radius: 8px !important;
+    border: none !important;
+    box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3) !important;
+}
+div.tabs button {
+    border-radius: 8px !important;
+    margin: 0 4px !important;
+    border: 1px solid #1f293d !important;
+    background-color: #111625 !important;
+    color: #a0a0c0 !important;
+    font-weight: 600 !important;
+}
+.gr-button-primary {
+    background: linear-gradient(135deg, #6366f1, #a855f7) !important;
+    border: none !important;
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2) !important;
+    transition: transform 0.2s, box-shadow 0.2s !important;
+}
+.gr-button-primary:hover {
+    transform: translateY(-1px) !important;
+    box-shadow: 0 6px 20px rgba(99, 102, 241, 0.4) !important;
+}
+.gr-box {
+    border-radius: 12px !important;
+    border: 1px solid #1f293d !important;
+    background-color: #111625 !important;
+}
+"""
+
 _IDE_IFRAME = """
 <div style="height:82vh;border:1px solid #313244;border-radius:10px;overflow:hidden">
   <iframe src="/ide" style="width:100%;height:100%;border:0" title="AI IDE"></iframe>
@@ -157,8 +215,8 @@ _IDE_IFRAME = """
 </p>
 """
 
-with gr.Blocks(title="Lead → Website Automation") as ui:
-    gr.Markdown("# 🏭 Lead → Website Automation\nFinds businesses with no website, builds one with Opus, publishes to Cloudflare Pages, drafts WhatsApp outreach.")
+with gr.Blocks(title="WebPulse Studio", theme=theme, css=CSS) as ui:
+    gr.Markdown("# 🏭 WebPulse Studio\nFinds businesses with no website, builds one with Amazon Bedrock, publishes to Cloudflare Pages, and drafts WhatsApp outreach.", elem_id="heading")
 
     with gr.Tab("Dashboard"):
         status = gr.Markdown(_status_md())
