@@ -9,6 +9,7 @@ from typing import List, Dict, Optional, Any
 import requests
 from bs4 import BeautifulSoup
 from googlesearch import search
+import config
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -20,6 +21,29 @@ USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0",
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Safari/605.1.15"
 ]
+
+
+def photo_url(photo_ref: str, maxwidth: int = 1200) -> str:
+    """Return a high-quality Unsplash image for placeholders."""
+    if not photo_ref or photo_ref.startswith("http"):
+        # Generate Unsplash fallback: salon
+        return "https://images.unsplash.com/photo-1521791136064-7986c2920216?auto=format&fit=crop&w=1200&q=80"
+    return photo_ref
+
+
+def get_unsplash_images(niche: str, count: int = 5) -> list[str]:
+    """Get high-quality, niche-specific images from Unsplash."""
+    if not config.UNSPLASH_ACCESS_KEY:
+        # Fallback curated images
+        fallback = {
+            "salon": ["https://images.unsplash.com/photo-1521791136064-7986c2920216?auto=format&fit=crop&w=1200&q=80"],
+            "bakery": ["https://images.unsplash.com/photo-1549887534-1541e9326642?auto=format&fit=crop&w=1200&q=80"],
+            "restaurant": ["https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=1200&q=80"],
+            "default": ["https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=1200&q=80"]
+        }
+        return fallback.get(niche.lower(), fallback["default"]) * count
+    return []
+
 
 def get_random_headers() -> Dict[str, str]:
     """Return random user-agent headers to avoid blocking!"""
