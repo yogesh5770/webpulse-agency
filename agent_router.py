@@ -217,7 +217,7 @@ def _try_gemini_direct(messages, tools, temperature, max_tokens, timeout):
     if tools:
         payload["tools"] = tools
 
-    models_to_try = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash", "gemini-2.5-flash"]
+    models_to_try = ["gemini-3.5-flash", "gemini-3.1-pro-preview", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]
     last_err = None
     # Rotate through all loaded keys
     for key in config.GEMINI_API_KEYS:
