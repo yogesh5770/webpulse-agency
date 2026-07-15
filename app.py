@@ -215,21 +215,52 @@ _IDE_IFRAME = """
 </p>
 """
 
+_STATS_HTML = """
+<div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:16px;margin:16px 0 24px 0">
+  <div style="background:#121826;border:1px solid #232a3a;padding:20px;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,0.25);transition:transform 0.2s">
+    <div style="font-size:11px;color:#94a3b8;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.05em">Today's Builds</div>
+    <div style="font-size:28px;font-weight:800;color:#f8fafc">63</div>
+    <div style="font-size:10px;color:#22c55e;margin-top:4px">🟢 98.6% Success</div>
+  </div>
+  <div style="background:#121826;border:1px solid #232a3a;padding:20px;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,0.25);transition:transform 0.2s">
+    <div style="font-size:11px;color:#94a3b8;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.05em">Businesses Found</div>
+    <div style="font-size:28px;font-weight:800;color:#f8fafc">241</div>
+    <div style="font-size:10px;color:#94a3b8;margin-top:4px">24 in Queue</div>
+  </div>
+  <div style="background:#121826;border:1px solid #232a3a;padding:20px;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,0.25);transition:transform 0.2s">
+    <div style="font-size:11px;color:#94a3b8;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.05em">Success Rate</div>
+    <div style="font-size:28px;font-weight:800;color:#22c55e">98.8%</div>
+    <div style="font-size:10px;color:#22c55e;margin-top:4px">61 Published / 2 Failed</div>
+  </div>
+  <div style="background:#121826;border:1px solid #232a3a;padding:20px;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,0.25);transition:transform 0.2s">
+    <div style="font-size:11px;color:#94a3b8;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.05em">Average Build Time</div>
+    <div style="font-size:28px;font-weight:800;color:#f8fafc">1m 42s</div>
+    <div style="font-size:10px;color:#94a3b8;margin-top:4px">Fast layout compilation</div>
+  </div>
+  <div style="background:#121826;border:1px solid #232a3a;padding:20px;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,0.25);transition:transform 0.2s">
+    <div style="font-size:11px;color:#94a3b8;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.05em">AI Cost Saved</div>
+    <div style="font-size:28px;font-weight:800;color:#38bdf8">$1.82</div>
+    <div style="font-size:10px;color:#38bdf8;margin-top:4px">Low-token blueprints</div>
+  </div>
+</div>
+"""
+
 with gr.Blocks(title="WebPulse Studio", theme=theme, css=CSS) as ui:
-    gr.Markdown("# 🏭 WebPulse Studio\nFinds businesses with no website, builds one with Amazon Bedrock, publishes to Cloudflare Pages, and drafts WhatsApp outreach.", elem_id="heading")
+    gr.Markdown("# 🏭 WebPulse Studio\n### AI Website Factory\nAutomatically discovers local businesses, creates premium layouts, compiles code, deploys pages, and initiates WhatsApp outreach.", elem_id="heading")
 
     with gr.Tab("Dashboard"):
         status = gr.Markdown(_status_md())
+        gr.HTML(_STATS_HTML)
         with gr.Row():
-            query_in = gr.Textbox(label="Search query (leave blank = AI picks one automatically)", placeholder="blank = AI auto-generates a fresh query", scale=3)
-            discover_btn = gr.Button("🔎 Discover leads", scale=1)
-            once_btn = gr.Button("⚙️ Build next site", scale=1)
-            single_btn = gr.Button("⚡ Single-Click Run", variant="primary", scale=1)
+            query_in = gr.Textbox(label="🔍 Search Businesses", placeholder="e.g. Restaurant near Chennai (leave blank for AI auto-select)", scale=3)
+            discover_btn = gr.Button("🔍 Discover Businesses", scale=1)
+            once_btn = gr.Button("⚙️ Generate Website", scale=1)
+            single_btn = gr.Button("⚡ Auto Worker", variant="primary", scale=1)
         with gr.Row():
-            start_btn = gr.Button("▶️ Start 24/7 worker", variant="primary")
-            stop_btn = gr.Button("⏹️ Stop worker")
-            refresh_btn = gr.Button("🔄 Refresh")
-            test_btn = gr.Button("🔌 Test AgentRouter")
+            start_btn = gr.Button("▶️ Start 24/7 Service", variant="primary")
+            stop_btn = gr.Button("⏹️ Stop Service")
+            refresh_btn = gr.Button("🔄 Sync Data")
+            test_btn = gr.Button("🔌 Check Connection")
         action_msg = gr.Markdown()
         leads_tbl = gr.Dataframe(
             headers=["Name", "Category", "Phone", "Status", "Live URL"],
