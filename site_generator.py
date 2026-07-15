@@ -99,6 +99,40 @@ Always return structured JSON only!
 """
 
 
+def get_niche_images(category: str) -> list[str]:
+    cat = (category or "business").lower()
+    if any(k in cat for k in ["salon", "barber", "parlour", "spa", "hairdresser"]):
+        return [
+            "https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=cover&w=800&q=80",
+            "https://images.unsplash.com/photo-1521590832167-7bcbfaa6381f?auto=format&fit=cover&w=800&q=80",
+            "https://images.unsplash.com/photo-1621605815971-fbc98d665033?auto=format&fit=cover&w=800&q=80"
+        ]
+    elif any(k in cat for k in ["bakery", "cafe", "restaurant", "food"]):
+        return [
+            "https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=cover&w=800&q=80",
+            "https://images.unsplash.com/photo-1555507036-ab1f4038808a?auto=format&fit=cover&w=800&q=80",
+            "https://images.unsplash.com/photo-1498804103079-a6351b050096?auto=format&fit=cover&w=800&q=80"
+        ]
+    elif any(k in cat for k in ["gym", "fitness", "workout"]):
+        return [
+            "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?auto=format&fit=cover&w=800&q=80",
+            "https://images.unsplash.com/photo-1517838277536-f5f99be501cd?auto=format&fit=cover&w=800&q=80",
+            "https://images.unsplash.com/photo-1541534741688-6078c6bfb5c5?auto=format&fit=cover&w=800&q=80"
+        ]
+    elif any(k in cat for k in ["dentist", "clinic", "medical", "doctor"]):
+        return [
+            "https://images.unsplash.com/photo-1629909613654-28e377c37b09?auto=format&fit=cover&w=800&q=80",
+            "https://images.unsplash.com/photo-1579684389782-64d84b5e902a?auto=format&fit=cover&w=800&q=80",
+            "https://images.unsplash.com/photo-1584824486509-112e4181ff6b?auto=format&fit=cover&w=800&q=80"
+        ]
+    else:
+        return [
+            "https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=cover&w=800&q=80",
+            "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=cover&w=800&q=80",
+            "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=cover&w=800&q=80"
+        ]
+
+
 def generate_site(lead: dict) -> str:
     """Generate the site using a TOKEN-EFFICIENT pipeline.
     Stores index.html, lead.json, and memory.json in the DB."""
@@ -106,11 +140,22 @@ def generate_site(lead: dict) -> str:
     photo_refs = json.loads(lead.get("photos_json") or "[]")
     images = [photo_url(ref) for ref in photo_refs]
 
+    category = (lead.get("category") or "business").lower()
+    theme_choice = "dark"
+    if any(k in category for k in ["salon", "barber", "parlour", "spa"]):
+        theme_choice = "creative"
+    elif any(k in category for k in ["bakery", "cafe", "restaurant"]):
+        theme_choice = "restaurant"
+    elif any(k in category for k in ["dentist", "clinic", "medical"]):
+        theme_choice = "medical"
+    elif any(k in category for k in ["gym", "fitness"]):
+        theme_choice = "startup"
+
     business_context = {
         "business": lead.get("name"),
         "industry": lead.get("category"),
-        "theme": "luxury",
-        "colors": ["#0f172a", "#38bdf8"],
+        "theme": theme_choice,
+        "colors": [],
         "target": "Local customers"
     }
 
@@ -206,9 +251,7 @@ Return JSON only.
         "business_address": lead.get("address") or "N/A",
         "business_phone": lead.get("phone") or "N/A",
         "business_hours": details.get("hours", ["Monday - Friday: 9 AM - 6 PM"]),
-        "gallery_images": images or [
-            "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=cover&w=400&q=80"
-        ],
+        "gallery_images": images or get_niche_images(lead.get("category")),
         # Theme tokens
         "primary_hsl": theme["primary_hsl"],
         "secondary_hsl": theme["secondary_hsl"],
