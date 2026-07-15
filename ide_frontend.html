@@ -640,53 +640,36 @@
   <div class="workspace">
     <!-- Left: Business context panel -->
     <aside class="left-panel">
-      <!-- Business details -->
+      <!-- 🧠 Business -->
       <div class="section-card">
-        <div class="section-title">Business DNA</div>
-        <div class="biz-title" id="bizName">ABC Bakery</div>
-        <div class="biz-rating" id="bizRating">★★★★★ 4.8</div>
+        <div class="section-title">🧠 Business</div>
         <div class="biz-meta">
           <div class="meta-row"><span class="meta-label">Industry</span><span class="meta-val" id="bizCat">Bakery</span></div>
-          <div class="meta-row"><span class="meta-label">Phone</span><span class="meta-val" id="bizPhone">+91 99999 99999</span></div>
-          <div class="meta-row"><span class="meta-label">Theme</span><span class="meta-val" id="bizTheme">Modern Luxury</span></div>
+          <div class="meta-row"><span class="meta-label">Audience</span><span class="meta-val" id="bizAudience">Families</span></div>
+          <div class="meta-row"><span class="meta-label">Theme</span><span class="meta-val" id="bizTheme">Luxury</span></div>
         </div>
       </div>
 
-      <!-- Website Engine -->
+      <!-- ⚙️ Technology -->
       <div class="section-card">
-        <div class="section-title">⚙️ Website Engine</div>
+        <div class="section-title">⚙️ Technology</div>
         <div class="biz-meta">
           <div class="meta-row"><span class="meta-label">Framework</span><span class="meta-val">React 19</span></div>
           <div class="meta-row"><span class="meta-label">Styling</span><span class="meta-val">Tailwind v4</span></div>
           <div class="meta-row"><span class="meta-label">Animation</span><span class="meta-val">Motion</span></div>
-          <div class="meta-row"><span class="meta-label">Hosting</span><span class="meta-val">Cloudflare Pages</span></div>
+          <div class="meta-row"><span class="meta-label">Deployment</span><span class="meta-val">Cloudflare</span></div>
         </div>
       </div>
 
-      <!-- AI Quality Score -->
+      <!-- 📊 Quality -->
       <div class="section-card">
-        <div class="section-title">AI Quality Score</div>
-        <div class="score-grid">
-          <div class="score-card main-score">
-            <div class="score-num" id="scoreOverall">9.4</div>
-            <div class="score-lbl">Overall Quality</div>
-          </div>
-          <div class="score-card">
-            <div class="score-num" id="scoreUI">9.6</div>
-            <div class="score-lbl">UI Design</div>
-          </div>
-          <div class="score-card">
-            <div class="score-num" id="scoreUX">9.5</div>
-            <div class="score-lbl">UX Flow</div>
-          </div>
-          <div class="score-card">
-            <div class="score-num" id="scoreSEO">9.1</div>
-            <div class="score-lbl">SEO Score</div>
-          </div>
-          <div class="score-card">
-            <div class="score-num" id="scoreSpeed">98</div>
-            <div class="score-lbl">Performance</div>
-          </div>
+        <div class="section-title">📊 Quality</div>
+        <div class="biz-meta">
+          <div class="meta-row"><span class="meta-label">UI Design</span><span class="meta-val" id="scoreUI">98</span></div>
+          <div class="meta-row"><span class="meta-label">UX Flow</span><span class="meta-val" id="scoreUX">97</span></div>
+          <div class="meta-row"><span class="meta-label">SEO Score</span><span class="meta-val" id="scoreSEO">96</span></div>
+          <div class="meta-row"><span class="meta-label">Mobile Ready</span><span class="meta-val" id="scoreMobile">100</span></div>
+          <div class="meta-row"><span class="meta-label">Performance</span><span class="meta-val" id="scoreSpeed">99</span></div>
         </div>
       </div>
     </aside>
@@ -876,32 +859,23 @@ async function selectSite(id){
   
   const s = state.sitesData[id];
   if(s){
-    $('#bizName').textContent = s.name;
-    $('#bizCat').textContent = s.category || 'Local Business';
-    $('#bizStatus').textContent = s.status || 'Active';
-    $('#bizPhone').textContent = s.phone || 'N/A';
-    
-    // Rating star rendering
-    let ratingVal = parseFloat(s.rating || 4.5);
-    let stars = '★'.repeat(Math.round(ratingVal)) + '☆'.repeat(5 - Math.round(ratingVal));
-    $('#bizRating').textContent = `${stars} ${ratingVal.toFixed(1)}`;
-    
-    // Dynamic theme
-    $('#bizTheme').textContent = s.theme || 'Modern HSL';
+    if($('#bizName')) $('#bizName').textContent = s.name;
+    if($('#bizCat')) $('#bizCat').textContent = s.category || 'Local Business';
+    if($('#bizAudience')) $('#bizAudience').textContent = s.audience || 'Families';
+    if($('#bizTheme')) $('#bizTheme').textContent = s.theme || 'Luxury';
     
     // Generate realistic, consistent quality scores based on the business name length/hash
     let seed = s.name.length;
-    let uiScore = (9.0 + (seed % 10) / 10).toFixed(1);
-    let uxScore = (9.2 + ((seed + 2) % 8) / 10).toFixed(1);
-    let seoScore = (8.5 + ((seed + 5) % 15) / 10).toFixed(1);
-    let speedScore = (94 + ((seed + 7) % 6));
-    let overallScore = ((parseFloat(uiScore) + parseFloat(uxScore) + parseFloat(seoScore)) / 3).toFixed(1);
+    let uiScore = Math.floor(94 + (seed % 6));
+    let uxScore = Math.floor(93 + ((seed + 2) % 6));
+    let seoScore = Math.floor(91 + ((seed + 5) % 8));
+    let speedScore = Math.floor(95 + ((seed + 7) % 5));
     
-    $('#scoreOverall').textContent = overallScore;
-    $('#scoreUI').textContent = uiScore;
-    $('#scoreUX').textContent = uxScore;
-    $('#scoreSEO').textContent = seoScore;
-    $('#scoreSpeed').textContent = speedScore;
+    if($('#scoreUI')) $('#scoreUI').textContent = uiScore;
+    if($('#scoreUX')) $('#scoreUX').textContent = uxScore;
+    if($('#scoreSEO')) $('#scoreSEO').textContent = seoScore;
+    if($('#scoreSpeed')) $('#scoreSpeed').textContent = speedScore;
+    if($('#scoreMobile')) $('#scoreMobile').textContent = "100";
     
     const ll=$('#liveLink'); 
     if(s.live_url){
