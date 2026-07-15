@@ -1,6 +1,8 @@
 # Test files
 test_assembler.py
 test_output.html
+test_pipeline.py
+test_pipeline_output.html
 
 # Decode scripts
 decode_base64.py
