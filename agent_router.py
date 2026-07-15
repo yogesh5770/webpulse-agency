@@ -365,8 +365,9 @@ def _try_bedrock_direct(messages, tools, temperature, max_tokens, timeout):
         if system_prompt_parts:
             native_request["system"] = [{"text": " ".join(system_prompt_parts)}]
         
-        # Try models in order of preference: Claude 3.5 Sonnet (APAC) → Claude 3.5 Haiku (APAC) → Claude 3.5 Sonnet v2 → Claude 3.5 Sonnet v1 → Claude 3 Haiku
+        # Try models in order of preference: Claude 3.5 Sonnet v1 (APAC) → Claude 3.5 Sonnet v2 (APAC) → Claude 3.5 Sonnet v2 → Claude 3.5 Sonnet v1 → Claude 3 Haiku
         model_ids_to_try = [
+            "apac.anthropic.claude-3-5-sonnet-20240620-v1:0",
             "apac.anthropic.claude-3-5-sonnet-20241022-v2:0",
             "apac.anthropic.claude-3-5-haiku-20241022-v1:0",
             "anthropic.claude-3-5-sonnet-20241022-v2:0",
@@ -437,8 +438,9 @@ def _try_bedrock_direct(messages, tools, temperature, max_tokens, timeout):
         if system_prompt_parts:
             native_request["system"] = [{"text": " ".join(system_prompt_parts)}]
         
-        # Try models in order of preference: Claude 3.5 Sonnet (APAC) → Claude 3.5 Haiku (APAC) → Claude 3.5 Sonnet v2 → Claude 3.5 Sonnet v1 → Claude 3 Haiku
+        # Try models in order of preference: Claude 3.5 Sonnet v1 (APAC) → Claude 3.5 Sonnet v2 (APAC) → Claude 3.5 Sonnet v2 → Claude 3.5 Sonnet v1 → Claude 3 Haiku
         model_ids_to_try = [
+            "apac.anthropic.claude-3-5-sonnet-20240620-v1:0",
             "apac.anthropic.claude-3-5-sonnet-20241022-v2:0",
             "apac.anthropic.claude-3-5-haiku-20241022-v1:0",
             "anthropic.claude-3-5-sonnet-20241022-v2:0",
@@ -524,8 +526,9 @@ def _try_bedrock_direct(messages, tools, temperature, max_tokens, timeout):
         if system_prompt_parts:
             native_request["system"] = [{"text": " ".join(system_prompt_parts)}]
         
-        # Try models in order of preference: Claude 3.5 Sonnet (APAC) → Claude 3.5 Haiku (APAC) → Claude 3.5 Sonnet v2 → Claude 3.5 Sonnet v1 → Claude 3 Haiku
+        # Try models in order of preference: Claude 3.5 Sonnet v1 (APAC) → Claude 3.5 Sonnet v2 (APAC) → Claude 3.5 Sonnet v2 → Claude 3.5 Sonnet v1 → Claude 3 Haiku
         model_ids_to_try = [
+            "apac.anthropic.claude-3-5-sonnet-20240620-v1:0",
             "apac.anthropic.claude-3-5-sonnet-20241022-v2:0",
             "apac.anthropic.claude-3-5-haiku-20241022-v1:0",
             "anthropic.claude-3-5-sonnet-20241022-v2:0",
