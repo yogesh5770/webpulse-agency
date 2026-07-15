@@ -1,0 +1,20 @@
+[Unit]
+Description=Lead -> Website Automation (Gradio dashboard + 24/7 worker)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/leadfactory
+# All secrets live here (chmod 600). Never commit this file.
+EnvironmentFile=/opt/leadfactory/.env
+ExecStart=/opt/leadfactory/.venv/bin/python app.py
+Restart=always
+RestartSec=5
+# Keep logs in journald: view with `journalctl -u leadfactory -f`
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
