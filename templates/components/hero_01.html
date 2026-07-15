@@ -1,0 +1,24 @@
+<section class="hero relative flex items-center justify-center text-center py-32 px-5 overflow-hidden" id="home" style="min-height: 100vh; background: radial-gradient(circle at top right, hsla(var(--primary-hsl), 0.08), radial-gradient(circle at bottom left, hsla(var(--secondary-hsl), 0.04));">
+  <div class="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
+  <div class="relative max-w-4xl mx-auto z-10">
+    <span class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 mb-8 tracking-wide uppercase">
+      ✨ Premium Experience
+    </span>
+    <h1 class="text-4xl sm:text-6xl md:text-7xl font-extrabold tracking-tight text-white mb-6 leading-tight">
+      <span class="block bg-clip-text text-transparent bg-gradient-to-r from-white via-slate-100 to-indigo-300">
+        {{HERO_TITLE}}
+      </span>
+    </h1>
+    <p class="text-lg sm:text-xl text-slate-400 max-w-2xl mx-auto mb-10 leading-relaxed">
+      {{HERO_SUBTITLE}}
+    </p>
+    <div class="flex flex-col sm:flex-row gap-4 justify-center items-center">
+      <a href="https://wa.me/{{WHATSAPP_NUMBER}}" target="_blank" class="w-full sm:w-auto px-8 py-4 rounded-xl font-bold bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg shadow-indigo-500/20 hover:from-indigo-600 hover:to-purple-700 hover:scale-[1.03] transition-all duration-300 text-center">
+        {{HERO_CTA_PRIMARY}}
+      </a>
+      <a href="#services" class="w-full sm:w-auto px-8 py-4 rounded-xl font-bold bg-slate-900/60 text-slate-300 border border-slate-800 hover:bg-slate-900 hover:border-slate-700 transition-all duration-300 text-center">
+        View Services
+      </a>
+    </div>
+  </div>
+</section>

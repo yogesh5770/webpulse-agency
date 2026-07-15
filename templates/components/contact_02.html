@@ -1,0 +1,45 @@
+<section class="contact py-24 px-5" id="contact">
+  <div class="max-w-6xl mx-auto">
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-12">
+      <div class="lg:col-span-5">
+        <h2 class="text-3xl sm:text-5xl font-extrabold text-white mb-6">Let's Connect</h2>
+        <p class="text-slate-400 mb-8">{{ABOUT_DESCRIPTION}}</p>
+        <div class="space-y-4 mb-8">
+          <div class="flex items-center gap-4">
+            <div class="w-12 h-12 rounded-full bg-indigo-500/20 flex items-center justify-center text-indigo-400">
+              📍
+            </div>
+            <div>
+              <div class="text-xs text-slate-500">Address</div>
+              <div class="text-slate-300">{{BUSINESS_ADDRESS}}</div>
+            </div>
+          </div>
+          <div class="flex items-center gap-4">
+            <div class="w-12 h-12 rounded-full bg-indigo-500/20 flex items-center justify-center text-indigo-400">
+              📞
+            </div>
+            <div>
+              <div class="text-xs text-slate-500">Phone</div>
+              <div class="text-slate-300">{{BUSINESS_PHONE}}</div>
+            </div>
+          </div>
+          <div class="flex items-center gap-4">
+            <div class="w-12 h-12 rounded-full bg-indigo-500/20 flex items-center justify-center text-indigo-400">
+              ⏰
+            </div>
+            <div>
+              <div class="text-xs text-slate-500">Hours</div>
+              <div class="text-slate-300">{{BUSINESS_HOURS}}</div>
+            </div>
+          </div>
+        </div>
+        <a href="https://wa.me/{{WHATSAPP_NUMBER}}" target="_blank" class="inline-flex items-center gap-3 px-8 py-4 rounded-full bg-white text-slate-900 font-bold hover:scale-105 transition-all duration-300">
+          💬 Start a Conversation
+        </a>
+      </div>
+      <div class="lg:col-span-7 rounded-2xl overflow-hidden border border-slate-800 min-h-[400px] relative">
+        {{MAPS_IFRAME}}
+      </div>
+    </div>
+  </div>
+</section>

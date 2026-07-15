@@ -1,10 +1,23 @@
+# Test files
+test_assembler.py
+test_output.html
+
+# Decode scripts
+decode_base64.py
+decode_bearer.py
+decode_new.py
+
+# Environment
 .env
-*.pyc
+.env.local
+
+# Deployment files
+*.zip
+
+# IDE
+.vscode/
+.idea/
+
+# Python
 __pycache__/
-leads.db
-sites/
-.DS_Store
-.vercel/
-.vercelignore
-vercel.json
-huggingface_upload/
+*.pyc

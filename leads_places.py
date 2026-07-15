@@ -27,8 +27,48 @@ def get_coords(location: str) -> tuple[float, float] | None:
 
 
 def photo_url(photo_ref: str, maxwidth: int = 1200) -> str:
-    """Return placeholders since OSM uses open imagery paths."""
-    return "https://images.unsplash.com/photo-1521791136064-7986c2920216?auto=format&fit=crop&w=1200&q=80"
+    """Return a high-quality placeholder or Unsplash image if ref is a niche keyword."""
+    if not photo_ref or photo_ref.startswith("osm_pid") or photo_ref.startswith("mock_pid"):
+        return "https://images.unsplash.com/photo-1521791136064-7986c2920216?auto=format&fit=crop&w=1200&q=80"
+    return photo_ref
+    
+def get_unsplash_images(niche: str, count: int = 5) -> list[str]:
+    """Get high-quality, niche-specific images from Unsplash."""
+    if not config.UNSPLASH_ACCESS_KEY:
+        fallback_keywords = {
+            "salon": "salon, hair, beauty",
+            "barber": "barber, haircut",
+            "parlour": "parlour, beauty",
+            "spa": "spa, wellness, massage",
+            "gym": "gym, fitness, workout",
+            "fitness": "fitness, gym, exercise",
+            "dentist": "dentist, dental, teeth",
+            "clinic": "clinic, doctor, health",
+            "restaurant": "restaurant, food, dining",
+            "cafe": "cafe, coffee, food"
+        }
+        return [
+            "https://images.unsplash.com/photo-1521791136064-7986c2920216?auto=format&fit=crop&w=1200&q=80"
+        ]
+    try:
+        keywords = niche.lower()
+        params = {
+            "query": keywords,
+            "client_id": config.UNSPLASH_ACCESS_KEY,
+            "per_page": count,
+            "orientation": "landscape"
+        }
+        r = requests.get("https://api.unsplash.com/search/photos", params=params, timeout=15)
+        if r.status_code == 200:
+            results = r.json().get("results", [])
+            return [
+                res["urls"]["regular"] + "&w=1200&q=80" for res in results
+            ]
+        else:
+            return []
+    except Exception as e:
+        print(f"Unsplash request failed: {e}")
+        return []
 
 
 def find_leads(query: str, max_results: int) -> list[dict]:
@@ -122,6 +162,9 @@ def find_leads(query: str, max_results: int) -> list[dict]:
 
             priority = "High" if total_score >= 80 else ("Medium" if total_score >= 50 else "Low")
 
+            # Get high-quality Unsplash images for this niche
+            unsplash_images = get_unsplash_images(niche, 5)
+            
             leads.append({
                 "place_id": f"osm_pid_{el.get('id')}",
                 "name": name,
@@ -130,7 +173,7 @@ def find_leads(query: str, max_results: int) -> list[dict]:
                 "address": address,
                 "lat": el_lat,
                 "lng": el_lng,
-                "photos_json": "[]",
+                "photos_json": json.dumps(unsplash_images),
                 "score": total_score,
                 "priority": priority,
                 "details_json": json.dumps({
@@ -179,6 +222,9 @@ def _generate_mock_leads(query: str, max_results: int) -> list[dict]:
     
     selected_name = random.choice(names.get(niche, ["Royal Local Business"]))
     
+    # Get high-quality Unsplash images for mock lead too
+    unsplash_images = get_unsplash_images(niche, 5)
+    
     lead = {
         "place_id": f"mock_pid_{random.randint(100000, 999999)}",
         "name": f"{selected_name} ({location.split(',')[0].strip()})",
@@ -187,7 +233,7 @@ def _generate_mock_leads(query: str, max_results: int) -> list[dict]:
         "address": f"12th Main Road, near Metro Station, {location}",
         "lat": 13.0827,
         "lng": 80.2707,
-        "photos_json": "[]",
+        "photos_json": json.dumps(unsplash_images),
         "score": random.randint(82, 98),  # Always generate high priority mock leads
         "priority": "High",
         "details_json": json.dumps({

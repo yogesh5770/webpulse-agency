@@ -90,11 +90,20 @@ def init_db() -> None:
             )
             """
         )
-        # Migrate existing schemas safely
+        # Migrate existing schemas safely - each ALTER TABLE in its own savepoint
         for col, col_type in [("score", "INTEGER NOT NULL DEFAULT 0"), ("priority", "TEXT NOT NULL DEFAULT 'Low'")]:
             try:
+                if _PG:
+                    con.execute("SAVEPOINT migrate_col")
                 cur.execute(f"ALTER TABLE leads ADD COLUMN {col} {col_type}")
+                if _PG:
+                    con.execute("RELEASE SAVEPOINT migrate_col")
             except Exception:
+                if _PG:
+                    try:
+                        con.execute("ROLLBACK TO SAVEPOINT migrate_col")
+                    except Exception:
+                        pass
                 pass
         cur.execute("CREATE INDEX IF NOT EXISTS idx_status ON leads(status)")
         cur.execute(

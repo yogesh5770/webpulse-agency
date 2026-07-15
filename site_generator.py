@@ -1,11 +1,12 @@
 """Generate a premium website for a business using a TOKEN-EFFICIENT pipeline:
-System Prompt → Blueprint JSON → Content JSON → Website Compiler
-This minimizes token usage while maintaining high quality!
+Business DNA → Design DNA → Content → Website Compiler
+This minimizes token usage while maintaining high quality and uniqueness!
 """
 import json
 import logging
+import random
 from agent_router import chat_text
-from leads_places import photo_url
+from leads_places import photo_url, get_unsplash_images
 import site_store
 import site_assembler
 import theme_engine
@@ -47,179 +48,152 @@ def _strip_fences(text: str) -> str:
     return text.strip()
 
 
-# --- TOKEN-EFFICIENT SYSTEM PROMPT – Master Prompt – Website AI v1
-SYSTEM_PROMPT = """You are Website AI, an elite autonomous frontend engineer, UI/UX designer, product designer, branding expert, SEO expert, accessibility expert, and performance engineer.
+# --- TOKEN-EFFICIENT SYSTEM PROMPTS ---
+SYSTEM_PROMPT_BUSINESS_DNA = """You are an elite business analyst and branding strategist. Your job is to deeply understand a business and create a "Business DNA" profile that captures its unique identity.
 
-MISSION
-Create premium, production-ready business websites that compete with websites designed by top agencies (Apple, Stripe, Linear, Framer, Vercel, Notion, Airbnb, Webflow showcase).
+Return only valid JSON with no extra text.
 
-PRIMARY GOAL
-Build websites that maximize:
- • UI Quality
- • UX
- • Conversion
- • Accessibility
- • Performance
- • SEO
- • Mobile Experience
- • Maintainability
+Generate Business DNA with these fields:
+- industry: The business industry/category
+- personality: Brand personality (e.g., "Modern Luxury", "Warm & Friendly", "Professional & Trusted", "Creative & Bold")
+- audience: Target audience (e.g., "Families and young professionals", "Luxury shoppers", "Health-conscious individuals")
+- price_range: Price positioning (e.g., "Budget", "Mid-range", "Premium", "Luxury")
+- strengths: Array of 3-5 business strengths
+- brand_style: Visual brand style (e.g., "Warm Elegant", "Minimal Clean", "Bold & Vibrant", "Dark & Sophisticated")
+- primary_goal: Primary business goal (e.g., "Increase walk-in customers", "Boost online bookings", "Build brand awareness")
+- tone_of_voice: Content tone (e.g., "Friendly & Approachable", "Professional & Authoritative", "Luxurious & Exclusive")
+"""
 
-Every website must feel handcrafted for the business.
+SYSTEM_PROMPT_DESIGN_DNA = """You are an award-winning senior product designer. Your job is to create a "Design DNA" profile that defines the visual and structural identity for the website based on the Business DNA.
 
-WORKFLOW
-Always follow these steps:
-1. Understand Business
-2. Analyze Business
-3. Determine Audience
-4. Determine Business Goals
-5. Determine Brand Personality
-6. Select Best Theme
-7. Select Typography
-8. Select Color Palette
-9. Select Layout
-10. Select Components
-11. Generate Content
-12. Generate SEO
-13. Generate Blueprint JSON
+Return only valid JSON with no extra text.
 
-IMPORTANT
-Never generate an entire React project.
-Instead generate:
-Business Analysis → Website Blueprint → Content JSON → SEO JSON → Component Selection.
+Available options:
+- themes: apple, stripe, linear, notion, luxury, restaurant, corporate, creative, dark, glass, medical, startup
+- animation_packs: luxury, corporate, modern, minimal, creative, medical, startup
+- hero_components: hero_01, hero_02, hero_03
+- about_components: about_01, about_02
+- services_components: services_01, services_02
+- gallery_components: gallery_01, gallery_02
+- reviews_components: reviews_01, reviews_02
+- contact_components: contact_01, contact_02
+- section_orders (choose one or create your own array):
+  - ["hero", "about", "services", "gallery", "reviews", "contact"]
+  - ["hero", "services", "about", "gallery", "reviews", "contact"]
+  - ["hero", "gallery", "about", "services", "reviews", "contact"]
+  - ["hero", "reviews", "about", "services", "gallery", "contact"]
 
-FRAMEWORK
-React 19, Vite, TypeScript, Tailwind CSS v4, shadcn/ui, Motion, Lucide React.
+Generate Design DNA with these fields:
+- theme: One theme from available options
+- animation_pack: One animation pack from available options
+- hero_component: Hero component variant
+- about_component: About component variant
+- services_component: Services component variant
+- gallery_component: Gallery component variant
+- reviews_component: Reviews component variant
+- contact_component: Contact component variant
+- section_order: Array defining the order of sections
+- design_rationale: Brief explanation of design choices
+"""
 
-DESIGN RULES
-Design must be: Minimal, Modern, Premium, Luxury, Clean, Elegant, Professional.
-Never produce generic templates. Every business must look unique.
+SYSTEM_PROMPT_CONTENT = """You are an elite copywriter and content strategist. Your job is to write unique, business-specific website content based on the Business DNA and Design DNA.
 
-OUTPUT
-Always return structured JSON only!
+Return only valid JSON with no extra text.
+
+Generate content with these fields:
+- hero_title: Catchy, premium title tailored to the business (3-10 words)
+- hero_subtitle: Brief, engaging description (15-30 words)
+- hero_cta_primary: Clear call-to-action (e.g., "Book Now", "Contact Us", "Get Started")
+- about_title: "About [Business Name]"
+- about_description: Detailed, authentic description (150-250 words)
+- about_xp_years: Number of years experience (integer, use 5 if unknown)
+- services_title: "Our Services" or similar
+- services_subtitle: Brief intro to services
+- services: Array of 3-5 objects with title, description, price
+- reviews: Array of 2-3 realistic reviews with author, text, rating (1-5)
+- seo_title: "[Business Name] | [Category] in [Location]"
+- seo_description: 150-160 character SEO description
+- seo_keywords: Comma-separated keywords
 """
 
 
-def get_niche_images(category: str) -> list[str]:
-    cat = (category or "business").lower()
-    if any(k in cat for k in ["salon", "barber", "parlour", "spa", "hairdresser"]):
-        return [
-            "https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=cover&w=800&q=80",
-            "https://images.unsplash.com/photo-1521590832167-7bcbfaa6381f?auto=format&fit=cover&w=800&q=80",
-            "https://images.unsplash.com/photo-1621605815971-fbc98d665033?auto=format&fit=cover&w=800&q=80"
-        ]
-    elif any(k in cat for k in ["bakery", "cafe", "restaurant", "food"]):
-        return [
-            "https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=cover&w=800&q=80",
-            "https://images.unsplash.com/photo-1555507036-ab1f4038808a?auto=format&fit=cover&w=800&q=80",
-            "https://images.unsplash.com/photo-1498804103079-a6351b050096?auto=format&fit=cover&w=800&q=80"
-        ]
-    elif any(k in cat for k in ["gym", "fitness", "workout"]):
-        return [
-            "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?auto=format&fit=cover&w=800&q=80",
-            "https://images.unsplash.com/photo-1517838277536-f5f99be501cd?auto=format&fit=cover&w=800&q=80",
-            "https://images.unsplash.com/photo-1541534741688-6078c6bfb5c5?auto=format&fit=cover&w=800&q=80"
-        ]
-    elif any(k in cat for k in ["dentist", "clinic", "medical", "doctor"]):
-        return [
-            "https://images.unsplash.com/photo-1629909613654-28e377c37b09?auto=format&fit=cover&w=800&q=80",
-            "https://images.unsplash.com/photo-1579684389782-64d84b5e902a?auto=format&fit=cover&w=800&q=80",
-            "https://images.unsplash.com/photo-1584824486509-112e4181ff6b?auto=format&fit=cover&w=800&q=80"
-        ]
-    else:
-        return [
-            "https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=cover&w=800&q=80",
-            "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=cover&w=800&q=80",
-            "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=cover&w=800&q=80"
-        ]
-
-
 def generate_site(lead: dict) -> str:
-    """Generate the site using a TOKEN-EFFICIENT pipeline.
+    """Generate the site using a unique pipeline.
     Stores index.html, lead.json, and memory.json in the DB."""
     details = json.loads(lead.get("details_json") or "{}")
     photo_refs = json.loads(lead.get("photos_json") or "[]")
-    images = [photo_url(ref) for ref in photo_refs]
-
-    category = (lead.get("category") or "business").lower()
-    theme_choice = "dark"
-    if any(k in category for k in ["salon", "barber", "parlour", "spa"]):
-        theme_choice = "creative"
-    elif any(k in category for k in ["bakery", "cafe", "restaurant"]):
-        theme_choice = "restaurant"
-    elif any(k in category for k in ["dentist", "clinic", "medical"]):
-        theme_choice = "medical"
-    elif any(k in category for k in ["gym", "fitness"]):
-        theme_choice = "startup"
+    # Load images - if they are already URLs, use them directly!
+    images = []
+    for ref in photo_refs:
+        if ref.startswith("http"):
+            images.append(ref)
+        else:
+            images.append(photo_url(ref))
+    # Fallback if images are empty
+    if not images:
+        images = get_unsplash_images(lead.get("category"), 5)
 
     business_context = {
         "business": lead.get("name"),
         "industry": lead.get("category"),
-        "theme": theme_choice,
-        "colors": [],
-        "target": "Local customers"
+        "address": lead.get("address"),
+        "phone": lead.get("phone"),
+        "details": details
     }
 
-    # --- Step 1: Generate Website Blueprint (JSON only, ~300 tokens) ---
-    prompt_blueprint = [
-        {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": f"""Business Context: {json.dumps(business_context)}
-
-Available themes (choose one):
-apple, stripe, linear, notion, luxury, restaurant, corporate, creative, dark, glass, medical, startup
-
-Available animation packs (choose one):
-luxury, corporate, modern, minimal, creative, medical, startup
-
-Task: Generate Website Blueprint. Return JSON only.
-Reuse existing components: Hero, About, Services, Gallery, Reviews, Contact, Footer
-
-Return JSON with:
-{{
-  "hero": "hero",
-  "about": "about",
-  "services": "services",
-  "gallery": "gallery",
-  "reviews": "reviews",
-  "contact": "contact",
-  "footer": "footer",
-  "animations": "modern",
-  "theme": "dark",
-  "seo": {{}}
-}}"""}
+    # --- Step 1: Generate Business DNA ---
+    prompt_business_dna = [
+        {"role": "system", "content": SYSTEM_PROMPT_BUSINESS_DNA},
+        {"role": "user", "content": f"Business Info: {json.dumps(business_context)}"}
     ]
-    blueprint_raw = _strip_fences(chat_text(prompt_blueprint, temperature=0.2, max_tokens=500))
+    business_dna_raw = _strip_fences(chat_text(prompt_business_dna, temperature=0.7, max_tokens=600))
     try:
-        blueprint = json.loads(blueprint_raw)
+        business_dna = json.loads(business_dna_raw)
     except Exception:
-        blueprint = {
-            "hero": "hero",
-            "about": "about",
-            "services": "services",
-            "gallery": "gallery",
-            "reviews": "reviews",
-            "contact": "contact",
-            "footer": "footer",
-            "animations": "modern",
-            "theme": "dark",
-            "seo": {}
+        business_dna = {
+            "industry": lead.get("category"),
+            "personality": "Modern & Professional",
+            "audience": "Local customers",
+            "price_range": "Mid-range",
+            "strengths": ["Quality service", "Friendly staff", "Convenient location"],
+            "brand_style": "Clean & Modern",
+            "primary_goal": "Increase customers",
+            "tone_of_voice": "Friendly & Approachable"
         }
 
-    # --- Step 2: Generate Content (JSON only, ~1000 tokens) ---
-    prompt_content = [
-        {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": f"""Business Context: {json.dumps(business_context)}
-Blueprint: {json.dumps(blueprint)}
-Task: Generate only website content. No HTML. Return JSON.
-Generate:
-- hero_title, hero_subtitle, hero_cta_primary
-- about_title, about_description, about_xp_years
-- services_title, services_subtitle, services (array of {{"title": string, "description": string, "price": string}})
-- reviews (array of {{"author": string, "text": string, "rating": number}})
-- seo_title, seo_description, seo_keywords
-Return JSON only.
-"""}
+    # --- Step 2: Generate Design DNA ---
+    prompt_design_dna = [
+        {"role": "system", "content": SYSTEM_PROMPT_DESIGN_DNA},
+        {"role": "user", "content": f"Business DNA: {json.dumps(business_dna)}"}
     ]
-    content_raw = _strip_fences(chat_text(prompt_content, temperature=0.5, max_tokens=1500))
+    design_dna_raw = _strip_fences(chat_text(prompt_design_dna, temperature=0.7, max_tokens=600))
+    try:
+        design_dna = json.loads(design_dna_raw)
+    except Exception:
+        # Randomize components for uniqueness if AI fails
+        design_dna = {
+            "theme": random.choice(["apple", "stripe", "luxury", "creative", "dark", "startup"]),
+            "animation_pack": random.choice(["luxury", "corporate", "modern", "minimal", "creative"]),
+            "hero_component": random.choice(["hero_01", "hero_02", "hero_03"]),
+            "about_component": random.choice(["about_01", "about_02"]),
+            "services_component": random.choice(["services_01", "services_02"]),
+            "gallery_component": random.choice(["gallery_01", "gallery_02"]),
+            "reviews_component": random.choice(["reviews_01", "reviews_02"]),
+            "contact_component": random.choice(["contact_01", "contact_02"]),
+            "section_order": random.choice([
+                ["hero", "about", "services", "gallery", "reviews", "contact"],
+                ["hero", "services", "about", "gallery", "reviews", "contact"],
+                ["hero", "gallery", "about", "services", "reviews", "contact"]
+            ]),
+            "design_rationale": "Fallback design choices"
+        }
+
+    # --- Step 3: Generate Content ---
+    prompt_content = [
+        {"role": "system", "content": SYSTEM_PROMPT_CONTENT},
+        {"role": "user", "content": f"Business Info: {json.dumps(business_context)}\nBusiness DNA: {json.dumps(business_dna)}"}
+    ]
+    content_raw = _strip_fences(chat_text(prompt_content, temperature=0.7, max_tokens=1500))
     try:
         content = json.loads(content_raw)
     except Exception:
@@ -227,7 +201,7 @@ Return JSON only.
             "hero_title": f"Welcome to {lead.get('name')}",
             "hero_subtitle": f"Top-rated {lead.get('category')} experience.",
             "hero_cta_primary": "Book Now",
-            "about_title": "About Us",
+            "about_title": f"About {lead.get('name')}",
             "about_description": "Serving our local community with premium quality and unmatched dedication.",
             "about_xp_years": 5,
             "services_title": "Our Services",
@@ -239,10 +213,10 @@ Return JSON only.
             "seo_keywords": f"{lead.get('name')}, {lead.get('category')}, services, booking"
         }
 
-    # --- Step 3: Website Compiler (no AI, just code assembly) ---
-    theme_name = blueprint.get("theme", "dark")
+    # --- Step 4: Website Compiler ---
+    theme_name = design_dna.get("theme", "dark")
     theme = theme_engine.get_theme(theme_name)
-    anim_pack_name = blueprint.get("animations", "modern")
+    anim_pack_name = design_dna.get("animation_pack", "modern")
     
     config_dict = {
         "business_name": lead.get("name"),
@@ -251,7 +225,7 @@ Return JSON only.
         "business_address": lead.get("address") or "N/A",
         "business_phone": lead.get("phone") or "N/A",
         "business_hours": details.get("hours", ["Monday - Friday: 9 AM - 6 PM"]),
-        "gallery_images": images or get_niche_images(lead.get("category")),
+        "gallery_images": images,
         # Theme tokens
         "primary_hsl": theme["primary_hsl"],
         "secondary_hsl": theme["secondary_hsl"],
@@ -263,6 +237,15 @@ Return JSON only.
         "font_family": theme["font_family"],
         "theme": theme_name,
         "animation_pack": anim_pack_name,
+        # Design DNA components and order
+        "hero_component": design_dna.get("hero_component", "hero_01"),
+        "about_component": design_dna.get("about_component", "about_01"),
+        "services_component": design_dna.get("services_component", "services_01"),
+        "gallery_component": design_dna.get("gallery_component", "gallery_01"),
+        "reviews_component": design_dna.get("reviews_component", "reviews_01"),
+        "contact_component": design_dna.get("contact_component", "contact_01"),
+        "section_order": design_dna.get("section_order", ["hero", "about", "services", "gallery", "reviews", "contact"]),
+        # SEO
         "seo_title": content.get("seo_title", f"{lead.get('name')} | {lead.get('category')}"),
         "seo_description": content.get("seo_description", f"Check out {lead.get('name')} for the best {lead.get('category')} in town."),
         "seo_keywords": content.get("seo_keywords", f"{lead.get('name')}, {lead.get('category')}, services, booking")
@@ -271,14 +254,16 @@ Return JSON only.
     # Merge content data
     config_dict.update(content)
     
-    # Run the Assembly Engine (Website OS Compiler)
+    # Run the Assembly Engine
     html = site_assembler.assemble_site(config_dict)
 
     # Build memory
     memory = {
         "businessName": lead.get("name"),
         "industry": lead.get("category"),
-        "theme": blueprint.get("theme", "modern"),
+        "businessDNA": business_dna,
+        "designDNA": design_dna,
+        "theme": theme_name,
         "colors": [],
         "fonts": [],
         "deployment": "Cloudflare Pages",
@@ -309,7 +294,9 @@ Return JSON only.
         {
             "index.html": html,
             "lead.json": lead_json,
-            "memory.json": json.dumps(memory, indent=2, ensure_ascii=False)
+            "memory.json": json.dumps(memory, indent=2, ensure_ascii=False),
+            "business_dna.json": json.dumps(business_dna, indent=2, ensure_ascii=False),
+            "design_dna.json": json.dumps(design_dna, indent=2, ensure_ascii=False)
         }
     )
 

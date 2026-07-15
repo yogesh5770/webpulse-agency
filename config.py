@@ -66,6 +66,7 @@ DEEPSEEK_API_KEY = _get("DEEPSEEK_API_KEY")
 DEEPSEEK_API_KEYS = [k.strip() for k in DEEPSEEK_API_KEY.split(",") if k.strip()] if DEEPSEEK_API_KEY else []
 ANTHROPIC_API_KEY = _get("ANTHROPIC_API_KEY")
 OPENAI_API_KEY = _get("OPENAI_API_KEY")
+UNSPLASH_ACCESS_KEY = _get("UNSPLASH_ACCESS_KEY")
 # Bedrock: either AWS credentials OR API key OR bearer token (for proxy)
 BEDROCK_API_KEY = _get("BEDROCK_API_KEY")
 AWS_BEARER_TOKEN_BEDROCK = _get("AWS_BEARER_TOKEN_BEDROCK")
