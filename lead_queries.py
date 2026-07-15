@@ -91,32 +91,25 @@ def _ai_query(niche: str, state: str, district: str, used: set[str]) -> str:
 
 
 def next_query() -> str:
-    """Return a fresh search query for the current district, then advance the
-    cursor. The query is recorded so it won't be produced again."""
+    """Return a fresh search query selecting a random district and niche across India.
+    The query is recorded so it won't be repeated."""
+    import random
     used = _used_queries()
-    d_idx, n_idx = _read_cursor()
 
-    # Try up to a full grid sweep to find a niche/district that yields a new
-    # query, so we never hand back a duplicate or get stuck.
-    attempts = len(DISTRICTS) * len(_NICHES)
-    for _ in range(attempts):
-        state, district = DISTRICTS[d_idx]
-        niche = _NICHES[n_idx]
+    # Try up to 100 times to find a new query
+    for _ in range(100):
+        state, district = random.choice(DISTRICTS)
+        niche = random.choice(_NICHES)
 
         if config.LEAD_AI_QUERIES:
             q = _ai_query(niche, state, district, used)
         else:
             q = _plain_query(niche, state, district)
 
-        # Advance the cursor for next time (persisted) BEFORE returning.
-        d_idx, n_idx = _advance(d_idx, n_idx)
-        _write_cursor(d_idx, n_idx)
-
         if q.lower() not in used:
             db.add_used_query(q)
             return q
-        # else: this combo was already used -> loop to the next one.
 
-    # Whole grid exhausted (every combo used at least once): reuse first slot.
-    state, district = DISTRICTS[0]
-    return _plain_query(_NICHES[0], state, district)
+    # Fallback to random if loop exhausted
+    state, district = random.choice(DISTRICTS)
+    return _plain_query(random.choice(_NICHES), state, district)
