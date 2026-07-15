@@ -332,7 +332,7 @@ def _try_deepseek_direct(messages, tools, temperature, max_tokens, timeout):
     raise AgentRouterError(f"All DeepSeek keys exhausted. Last error: {last_err}")
 
 
-def _try_bedrock_direct(messages, tools, temperature, max_tokens, timeout):
+def _try_bedrock_direct(messages, tools, temperature, max_tokens, timeout, model_id=None):
     # First, check which Bedrock authentication mode to use
     if config.AWS_BEARER_TOKEN_BEDROCK:
         # Use Bedrock bearer token mode
@@ -365,16 +365,14 @@ def _try_bedrock_direct(messages, tools, temperature, max_tokens, timeout):
         if system_prompt_parts:
             native_request["system"] = [{"text": " ".join(system_prompt_parts)}]
         
-        # Try models in order of preference: Claude 3.5 Sonnet v1 (APAC) → Claude 3.5 Sonnet v2 (APAC) → Claude 3.5 Sonnet v2 → Claude 3.5 Sonnet v1 → Claude 3 Haiku
-        model_ids_to_try = [
-            "apac.anthropic.claude-3-5-sonnet-20240620-v1:0",
-            "apac.anthropic.claude-3-5-sonnet-20241022-v2:0",
-            "apac.anthropic.claude-3-5-haiku-20241022-v1:0",
-            "anthropic.claude-3-5-sonnet-20241022-v2:0",
-            "anthropic.claude-3-5-sonnet-20240620-v1:0",
-            "anthropic.claude-3-haiku-20240307-v1:0",
-            "us.anthropic.claude-3-5-sonnet-20241022-v2:0"
-        ]
+        if model_id:
+            model_ids_to_try = [model_id]
+        else:
+            model_ids_to_try = [
+                "apac.amazon.nova-lite-v1:0",
+                "apac.amazon.nova-micro-v1:0",
+                "apac.anthropic.claude-3-5-sonnet-20240620-v1:0"
+            ]
         
         last_error = None
         for model_id in model_ids_to_try:
@@ -438,16 +436,14 @@ def _try_bedrock_direct(messages, tools, temperature, max_tokens, timeout):
         if system_prompt_parts:
             native_request["system"] = [{"text": " ".join(system_prompt_parts)}]
         
-        # Try models in order of preference: Claude 3.5 Sonnet v1 (APAC) → Claude 3.5 Sonnet v2 (APAC) → Claude 3.5 Sonnet v2 → Claude 3.5 Sonnet v1 → Claude 3 Haiku
-        model_ids_to_try = [
-            "apac.anthropic.claude-3-5-sonnet-20240620-v1:0",
-            "apac.anthropic.claude-3-5-sonnet-20241022-v2:0",
-            "apac.anthropic.claude-3-5-haiku-20241022-v1:0",
-            "anthropic.claude-3-5-sonnet-20241022-v2:0",
-            "anthropic.claude-3-5-sonnet-20240620-v1:0",
-            "anthropic.claude-3-haiku-20240307-v1:0",
-            "us.anthropic.claude-3-5-sonnet-20241022-v2:0"
-        ]
+        if model_id:
+            model_ids_to_try = [model_id]
+        else:
+            model_ids_to_try = [
+                "apac.amazon.nova-lite-v1:0",
+                "apac.amazon.nova-micro-v1:0",
+                "apac.anthropic.claude-3-5-sonnet-20240620-v1:0"
+            ]
         
         last_error = None
         for model_id in model_ids_to_try:
@@ -526,16 +522,14 @@ def _try_bedrock_direct(messages, tools, temperature, max_tokens, timeout):
         if system_prompt_parts:
             native_request["system"] = [{"text": " ".join(system_prompt_parts)}]
         
-        # Try models in order of preference: Claude 3.5 Sonnet v1 (APAC) → Claude 3.5 Sonnet v2 (APAC) → Claude 3.5 Sonnet v2 → Claude 3.5 Sonnet v1 → Claude 3 Haiku
-        model_ids_to_try = [
-            "apac.anthropic.claude-3-5-sonnet-20240620-v1:0",
-            "apac.anthropic.claude-3-5-sonnet-20241022-v2:0",
-            "apac.anthropic.claude-3-5-haiku-20241022-v1:0",
-            "anthropic.claude-3-5-sonnet-20241022-v2:0",
-            "anthropic.claude-3-5-sonnet-20240620-v1:0",
-            "anthropic.claude-3-haiku-20240307-v1:0",
-            "us.anthropic.claude-3-5-sonnet-20241022-v2:0"
-        ]
+        if model_id:
+            model_ids_to_try = [model_id]
+        else:
+            model_ids_to_try = [
+                "apac.amazon.nova-lite-v1:0",
+                "apac.amazon.nova-micro-v1:0",
+                "apac.anthropic.claude-3-5-sonnet-20240620-v1:0"
+            ]
         
         last_error = None
         for model_id in model_ids_to_try:
@@ -567,14 +561,14 @@ def _try_bedrock_direct(messages, tools, temperature, max_tokens, timeout):
 
 # ---- Public Entrypoint with Failover Router ----
 
-def chat(messages, tools=None, temperature=0.7, max_tokens=8000, timeout=25):
+def chat(messages, tools=None, temperature=0.7, max_tokens=8000, timeout=25, model_id=None):
     """Sends chat request using ONLY Bedrock (per user request)."""
     if not (config.AWS_BEARER_TOKEN_BEDROCK or config.BEDROCK_API_KEY or (config.AWS_ACCESS_KEY_ID and config.AWS_SECRET_ACCESS_KEY)):
         raise AgentRouterError("Neither Bedrock bearer token, API key, nor AWS credentials set.")
     
     try:
         logger.info("Attempting API call using Bedrock Direct...")
-        return _try_bedrock_direct(messages, tools, temperature, max_tokens, timeout)
+        return _try_bedrock_direct(messages, tools, temperature, max_tokens, timeout, model_id=model_id)
     except Exception as e:
         logger.error(f"Bedrock Direct failed: {e}")
         raise AgentRouterError(f"Bedrock failed: {e}")
