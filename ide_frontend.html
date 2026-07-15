@@ -131,6 +131,7 @@
     <button class="tbtn" id="cmdNew">＋ New file</button>
     <button class="tbtn" id="cmdUndo">↩ Undo</button>
     <button class="tbtn" id="cmdReload">↻ Reload sites</button>
+    <button class="tbtn primary" id="cmdDeploy">🚀 Redeploy</button>
   </div>
 
   <div class="body">
@@ -473,6 +474,22 @@ $('#cmdUndo').onclick=async()=>{
   const j=await r.json(); toast(j.message||'undone');
   for(const k of Object.keys(state.content)) delete state.content[k];
   await loadTree(); if(state.active&&state.files.includes(state.active))openFile(state.active); refreshPreview();
+};
+$('#cmdDeploy').onclick=async()=>{
+  if(!state.site){toast('Pick a site first');return;}
+  const btn=$('#cmdDeploy'); const label=btn.textContent;
+  btn.disabled=true; btn.textContent='⏳ Deploying…';
+  try{
+    const r=await fetch('/ide/api/redeploy',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({site:state.site})});
+    const j=await r.json();
+    if(j.ok){
+      const ll=$('#liveLink'); ll.href=j.live_url; ll.style.display='';
+      const opt=$('#siteSel').selectedOptions[0]; if(opt)opt._live=j.live_url;
+      toast('Live at '+j.live_url);
+    }else toast('Deploy failed: '+(j.error||'unknown'));
+  }catch(e){toast('Deploy error: '+e);}
+  finally{btn.disabled=false; btn.textContent=label;}
 };
 $('#cmdNew').onclick=newFile; $('#miniNew').onclick=newFile;
 $('#sendBtn').onclick=send;

@@ -109,6 +109,34 @@ def init_db() -> None:
             """
         )
         cur.execute("CREATE INDEX IF NOT EXISTS idx_sitefiles_pid ON site_files(place_id)")
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS app_state (
+                key   TEXT PRIMARY KEY,
+                value TEXT
+            )
+            """
+        )
+
+
+def get_state(key: str, default: str = "") -> str:
+    """Read a persistent key/value (used e.g. for the district cursor)."""
+    with _conn() as con:
+        cur = con.cursor()
+        cur.execute(_sql("SELECT value FROM app_state WHERE key = ?"), (key,))
+        row = cur.fetchone()
+        return row["value"] if row else default
+
+
+def set_state(key: str, value: str) -> None:
+    """Write a persistent key/value (upsert)."""
+    with _conn() as con:
+        cur = con.cursor()
+        cur.execute(
+            _sql("INSERT INTO app_state (key, value) VALUES (?, ?) "
+                 "ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value"),
+            (key, value),
+        )
 
 
 def get_used_queries() -> list[str]:

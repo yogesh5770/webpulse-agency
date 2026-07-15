@@ -1,7 +1,7 @@
 """End-to-end pipeline for ONE lead and the 24/7 worker loop.
 
 process_one_lead: enrich is already done at discovery; here we generate the
-site, deploy to Netlify, draft the WhatsApp message, and record everything.
+site, deploy to Cloudflare Pages, draft the WhatsApp message, and record it all.
 
 worker_loop: runs forever, claiming one 'new' lead at a time (dedup-safe),
 so the system keeps building sites around the clock, one by one.
@@ -50,7 +50,7 @@ def process_one_lead() -> dict | None:
         site_marker = generate_site(lead)          # "db://<place_id>" — files stored in DB
         # Deploy needs real files: materialize the DB folder into a temp dir.
         deploy_dir = site_store.materialize(pid)
-        live_url = deploy(deploy_dir, name_hint=lead.get("name", ""))
+        live_url = deploy(deploy_dir, name_hint=lead.get("name", ""), stable_key=pid)
         message = draft_message(lead, live_url)
         db.update_lead(
             pid,

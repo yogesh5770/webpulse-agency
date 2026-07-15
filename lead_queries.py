@@ -1,90 +1,80 @@
-"""AI-driven lead search queries.
+"""District-by-district lead search queries.
 
-Instead of one fixed search string, ask Opus to generate fresh, varied
-Google Places queries (business niche x location) so the 24/7 worker keeps
-finding NEW leads instead of re-scanning the same area. Used queries are
-persisted so we never repeat one, and there's an offline fallback rotation
-if the model is unavailable.
+Discovery systematically sweeps EVERY district in EVERY state (Tamil Nadu
+first). A persistent cursor in the DB remembers how far we've walked, so the
+24/7 worker keeps advancing across the country and resumes where it left off
+after a restart.
+
+For each (state, district) we iterate the business niches. When AI queries are
+enabled, Opus is told the exact state+district to target so it varies the
+neighbourhood/town within that district; otherwise we fall back to a plain
+"<niche> in <district>, <state>, India" query. Every produced query is recorded
+so it is never repeated.
 """
 import json
 
 import config
 import db
 from agent_router import chat_text
+from india_districts import DISTRICTS
 
-# Businesses that commonly have NO website -> good targets. Used only by the
-# offline fallback; the AI path invents its own, wider variety.
-_FALLBACK_NICHES = [
-    "salon", "barber shop", "gym", "spa", "beauty parlour", "tailor",
-    "bakery", "cafe", "dentist clinic", "pet grooming", "car wash",
-    "tattoo studio", "yoga studio", "florist", "photography studio",
+# Business types that commonly have NO website -> good targets.
+_NICHES = [
+    "salon", "barber shop", "beauty parlour", "spa", "gym", "fitness center",
+    "tailor", "boutique", "bakery", "cafe", "restaurant", "sweet shop",
+    "dentist clinic", "physiotherapy clinic", "pet grooming", "car wash",
+    "car repair garage", "tattoo studio", "yoga studio", "dance studio",
+    "florist", "photography studio", "event planner", "interior designer",
+    "hardware store", "mobile repair shop", "coaching center", "play school",
 ]
 
-# Major cities/towns across India, so the offline fallback (and the AI hint)
-# spread lead discovery nationwide instead of one city. Kept broad on purpose.
-# --- Tamil Nadu, comprehensively (home market -> cover it FULLY) ---
-_TN_CITIES = [
-    "Chennai", "Coimbatore", "Madurai", "Tiruchirappalli", "Salem",
-    "Tirunelveli", "Tiruppur", "Erode", "Vellore", "Thoothukudi",
-    "Dindigul", "Thanjavur", "Ranipet", "Sivakasi", "Karur", "Hosur",
-    "Nagercoil", "Kanchipuram", "Kumbakonam", "Cuddalore", "Tiruvannamalai",
-    "Pollachi", "Rajapalayam", "Pudukkottai", "Neyveli", "Nagapattinam",
-    "Viluppuram", "Tiruchengode", "Vaniyambadi", "Theni", "Namakkal",
-    "Krishnagiri", "Dharmapuri", "Virudhunagar", "Ramanathapuram",
-    "Sivaganga", "Ooty", "Kovilpatti", "Arakkonam", "Gudiyatham",
-]
-
-# --- The rest of India (metros + tier-2) -> cover the country too ---
-_REST_INDIA_CITIES = [
-    "Mumbai", "Delhi", "Bengaluru", "Hyderabad", "Kolkata", "Pune",
-    "Ahmedabad", "Jaipur", "Surat", "Lucknow", "Kanpur", "Nagpur", "Indore",
-    "Bhopal", "Kochi", "Visakhapatnam", "Patna", "Vadodara", "Ludhiana",
-    "Agra", "Nashik", "Varanasi", "Rajkot", "Amritsar", "Chandigarh",
-    "Guwahati", "Thiruvananthapuram", "Mysuru", "Mangaluru", "Vijayawada",
-    "Bhubaneswar", "Dehradun", "Jodhpur", "Raipur", "Ranchi", "Gwalior",
-    "Jabalpur", "Aurangabad", "Noida", "Gurugram", "Faridabad", "Ghaziabad",
-    "Meerut", "Kozhikode", "Warangal", "Guntur", "Jalandhar", "Udaipur",
-]
-
-# Tamil Nadu first (priority), then the rest of India.
-_INDIA_CITIES = _TN_CITIES + _REST_INDIA_CITIES
+_CUR_KEY = "district_cursor"  # stores "districtIndex:nicheIndex"
 
 
 def _used_queries() -> set[str]:
     return {q.lower() for q in db.get_used_queries()}
 
 
-def _fallback_query(used: set[str]) -> str:
-    """Deterministic rotation of (niche x city) ACROSS INDIA, so discovery
-    keeps finding new businesses nationwide even without the AI generator.
-    Iterates city-major so we spread across the country quickly."""
-    for niche in _FALLBACK_NICHES:
-        for city in _INDIA_CITIES:
-            q = f"{niche} in {city}"
-            if q.lower() not in used:
-                return q
-    # Everything used at least once -> allow reuse (whole grid exhausted).
-    return f"{_FALLBACK_NICHES[0]} in {_INDIA_CITIES[0]}"
+def _read_cursor() -> tuple[int, int]:
+    raw = db.get_state(_CUR_KEY, "0:0")
+    try:
+        d, n = raw.split(":")
+        return int(d), int(n)
+    except (ValueError, AttributeError):
+        return 0, 0
 
 
-def next_query() -> str:
-    """Return a fresh search query. Uses Opus when enabled, else the rotation.
-    The returned query is recorded so it won't be produced again."""
-    used = _used_queries()
+def _write_cursor(d_idx: int, n_idx: int) -> None:
+    db.set_state(_CUR_KEY, f"{d_idx}:{n_idx}")
 
-    if not config.LEAD_AI_QUERIES:
-        q = _fallback_query(used)
-        db.add_used_query(q)
-        return q
 
+def _advance(d_idx: int, n_idx: int) -> tuple[int, int]:
+    """Move to the next niche; when a district's niches are exhausted, move to
+    the next district. Wraps back to the start after the whole grid."""
+    n_idx += 1
+    if n_idx >= len(_NICHES):
+        n_idx = 0
+        d_idx += 1
+        if d_idx >= len(DISTRICTS):
+            d_idx = 0
+    return d_idx, n_idx
+
+
+def _plain_query(niche: str, state: str, district: str) -> str:
+    return f"{niche} in {district}, {state}, India"
+
+
+def _ai_query(niche: str, state: str, district: str, used: set[str]) -> str:
+    """Ask Opus for one specific Places query inside this district, varying the
+    town/neighbourhood. Falls back to the plain query on any problem."""
     prompt = (
-        "You generate Google Places text-search queries to find LOCAL "
-        "businesses that typically have NO website (salons, gyms, small "
-        f"shops, clinics, etc.) in and around: {config.LEAD_REGION}.\n"
-        "Vary the business type AND the specific town/neighbourhood so each "
-        "query surfaces different businesses. Return ONE query only, format "
-        "'<business type> in <specific area>'. Do NOT reuse any of these "
-        f"already-used queries: {json.dumps(sorted(used)[:60])}.\n"
+        "You generate ONE Google Places text-search query to find LOCAL "
+        f"'{niche}' businesses that usually have NO website, located inside "
+        f"{district} district, {state}, India.\n"
+        "Pick a specific town, locality or neighbourhood WITHIN that district "
+        "so the query surfaces real local businesses. Format exactly: "
+        "'<business type> in <specific area>, <district>'.\n"
+        f"Do NOT reuse any of these already-used queries: {json.dumps(sorted(used)[:40])}.\n"
         "Return ONLY the query text, nothing else."
     )
     try:
@@ -92,11 +82,41 @@ def next_query() -> str:
             [{"role": "user", "content": prompt}],
             temperature=1.0,
             max_tokens=40,
-        ).strip().strip('"').splitlines()[0]
+        ).strip().strip('"').splitlines()[0].strip()
     except Exception:
         q = ""
-
     if not q or q.lower() in used:
-        q = _fallback_query(used)
-    db.add_used_query(q)
+        return _plain_query(niche, state, district)
     return q
+
+
+def next_query() -> str:
+    """Return a fresh search query for the current district, then advance the
+    cursor. The query is recorded so it won't be produced again."""
+    used = _used_queries()
+    d_idx, n_idx = _read_cursor()
+
+    # Try up to a full grid sweep to find a niche/district that yields a new
+    # query, so we never hand back a duplicate or get stuck.
+    attempts = len(DISTRICTS) * len(_NICHES)
+    for _ in range(attempts):
+        state, district = DISTRICTS[d_idx]
+        niche = _NICHES[n_idx]
+
+        if config.LEAD_AI_QUERIES:
+            q = _ai_query(niche, state, district, used)
+        else:
+            q = _plain_query(niche, state, district)
+
+        # Advance the cursor for next time (persisted) BEFORE returning.
+        d_idx, n_idx = _advance(d_idx, n_idx)
+        _write_cursor(d_idx, n_idx)
+
+        if q.lower() not in used:
+            db.add_used_query(q)
+            return q
+        # else: this combo was already used -> loop to the next one.
+
+    # Whole grid exhausted (every combo used at least once): reuse first slot.
+    state, district = DISTRICTS[0]
+    return _plain_query(_NICHES[0], state, district)

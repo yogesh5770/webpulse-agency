@@ -16,6 +16,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 import db
 import site_store
 import ide_agent as agent
+from deploy import deploy as deploy_site
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _FRONTEND = os.path.join(_HERE, "ide_frontend.html")
@@ -172,3 +173,22 @@ def register_ide_routes(app) -> None:
                 yield "data: " + json.dumps(ev) + "\n\n"
 
         return StreamingResponse(sse(), media_type="text/event-stream")
+
+    @app.post("/ide/api/redeploy")
+    async def redeploy(req: Request):
+        body = await req.json()
+        lead = _resolve(body.get("site"))
+        if not lead:
+            return JSONResponse({"error": "site not found"}, status_code=404)
+        pid = lead["place_id"]
+        try:
+            # DB (source of truth, includes IDE + agent edits) -> temp dir -> deploy.
+            # stable_key=pid keeps the SAME branch/URL on every redeploy.
+            workdir = site_store.materialize(pid)
+            live_url = deploy_site(
+                workdir, name_hint=lead.get("name", ""), stable_key=pid,
+            )
+            db.update_lead(pid, live_url=live_url, status="published", error="")
+            return JSONResponse({"ok": True, "live_url": live_url})
+        except Exception as e:
+            return JSONResponse({"ok": False, "error": str(e)}, status_code=500)

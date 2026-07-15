@@ -41,14 +41,15 @@ def _acct_headers() -> dict:
     return {"Authorization": f"Bearer {config.CLOUDFLARE_API_TOKEN}"}
 
 
-def _slug_branch(name_hint: str, site_dir: str) -> str:
+def _slug_branch(name_hint: str, stable_key: str) -> str:
     """A stable, DNS-safe branch/alias per business (<=28 chars + suffix).
 
-    We append a short hash of the site_dir so two businesses with the same
-    name still get distinct URLs, and re-deploys of the SAME site reuse the
-    same branch (stable URL)."""
+    The suffix hashes `stable_key` (the business's place_id), NOT the temp
+    working dir, so every re-deploy of the SAME business reuses the SAME branch
+    and therefore the SAME live URL. Two businesses with the same display name
+    still get distinct URLs because their place_ids differ."""
     base = re.sub(r"[^a-z0-9]+", "-", (name_hint or "site").lower()).strip("-")[:28] or "site"
-    suffix = hashlib.sha1(site_dir.encode()).hexdigest()[:6]
+    suffix = hashlib.sha1((stable_key or name_hint or "site").encode()).hexdigest()[:6]
     return f"{base}-{suffix}".strip("-")
 
 
@@ -207,12 +208,15 @@ def _content_type(ext: str) -> str:
 
 # ---- public entrypoint ----------------------------------------------
 
-def deploy(site_dir: str, name_hint: str = "") -> str:
-    """Publish `site_dir` to Cloudflare Pages; return the live URL."""
+def deploy(site_dir: str, name_hint: str = "", stable_key: str = "") -> str:
+    """Publish `site_dir` to Cloudflare Pages; return the live URL.
+
+    Pass `stable_key` (the business place_id) so re-deploys reuse the same
+    branch/URL. Falls back to `site_dir` only if no key is given."""
     if not config.CLOUDFLARE_PAGES_PROJECT:
         raise RuntimeError("CLOUDFLARE_PAGES_PROJECT is not set.")
     _ensure_project()
-    branch = _slug_branch(name_hint, site_dir)
+    branch = _slug_branch(name_hint, stable_key or site_dir)
     if _have_wrangler():
         return _deploy_wrangler(site_dir, branch)
     return _deploy_rest(site_dir, branch)

@@ -1,20 +1,14 @@
-"""Deploy dispatcher: publish a site folder via the configured provider.
+"""Deploy dispatcher: publish a site folder to Cloudflare Pages.
 
-Set DEPLOY_PROVIDER in .env to choose:
-  - "cloudflare" (default) -> Cloudflare Pages (unlimited free, no project caps)
-  - "netlify"              -> Netlify (kept for compatibility)
+Cloudflare Pages is the only host for generated client sites: unlimited sites,
+requests, and bandwidth on the free plan -- no per-project caps, which is what
+a 24/7 site factory needs.
 
-The rest of the app calls deploy(site_dir, name_hint) and doesn't care which
-backend is used.
+The rest of the app calls deploy(site_dir, name_hint) and doesn't care how it
+is published.
 """
-import config
+from cloudflare_deploy import deploy as _deploy
 
 
-def deploy(site_dir: str, name_hint: str = "") -> str:
-    provider = (config.DEPLOY_PROVIDER or "cloudflare").lower()
-    if provider == "netlify":
-        from netlify_deploy import deploy as _d
-        return _d(site_dir, name_hint)
-    # default
-    from cloudflare_deploy import deploy as _d
-    return _d(site_dir, name_hint)
+def deploy(site_dir: str, name_hint: str = "", stable_key: str = "") -> str:
+    return _deploy(site_dir, name_hint, stable_key)

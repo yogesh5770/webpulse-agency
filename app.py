@@ -84,6 +84,52 @@ def on_test_connection():
     return msg
 
 
+# ---------- WhatsApp Simulator Callbacks ------------------------------
+
+def _get_published_sites_choices():
+    return [f"{l.get('name')} ({l.get('place_id')[:8]})" for l in db.all_leads() if l.get("site_dir")]
+
+
+def on_refresh_sim_choices():
+    choices = _get_published_sites_choices()
+    return gr.update(choices=choices, value=choices[0] if choices else None)
+
+
+def on_load_chat_history(selected_site):
+    if not selected_site:
+        return "No site selected."
+    pid_prefix = selected_site.split("(")[-1].strip(")")
+    for l in db.all_leads():
+        if l.get("place_id")[:8] == pid_prefix:
+            return l.get("message") or "No messages yet."
+    return "Site not found."
+
+
+def on_send_sim_message(selected_site, message_text):
+    if not selected_site:
+        return "No site selected.", "Please select a site first."
+    if not message_text.strip():
+        return "Empty message.", "Please enter a message."
+    
+    pid_prefix = selected_site.split("(")[-1].strip(")")
+    place_id = None
+    for l in db.all_leads():
+        if l.get("place_id")[:8] == pid_prefix:
+            place_id = l.get("place_id")
+            break
+            
+    if not place_id:
+        return "Site place_id not found.", "Error: site matching selection not found."
+        
+    try:
+        import whatsapp_agent
+        reply = whatsapp_agent.handle_customer_reply(place_id, message_text)
+        updated_lead = db.get_lead(place_id)
+        return updated_lead.get("message") or "", f"Done! Agency response: {reply}"
+    except Exception as e:
+        return f"Error: {e}", f"Execution failed: {e}"
+
+
 # ---------- UI --------------------------------------------------------
 
 _IDE_IFRAME = """
@@ -97,7 +143,7 @@ _IDE_IFRAME = """
 """
 
 with gr.Blocks(title="Lead → Website Automation") as ui:
-    gr.Markdown("# 🏭 Lead → Website Automation\nFinds businesses with no website, builds one with Opus, publishes to Netlify, drafts WhatsApp outreach.")
+    gr.Markdown("# 🏭 Lead → Website Automation\nFinds businesses with no website, builds one with Opus, publishes to Cloudflare Pages, drafts WhatsApp outreach.")
 
     with gr.Tab("Dashboard"):
         status = gr.Markdown(_status_md())
@@ -127,22 +173,93 @@ with gr.Blocks(title="Lead → Website Automation") as ui:
         gr.Markdown("### 🖥️ Cursor-style AI IDE — real Monaco editor, file tabs, live preview, diffs, and an autonomous agent.")
         gr.HTML(_IDE_IFRAME)
 
+    with gr.Tab("WhatsApp Simulator"):
+        gr.Markdown("### 💬 Simulate customer WhatsApp replies to trigger autonomous website updates")
+        with gr.Row():
+            sim_site = gr.Dropdown(label="Select Business / Site", choices=_get_published_sites_choices(), interactive=True)
+            refresh_sim_btn = gr.Button("↻ Refresh Sites List")
+        
+        chat_history = gr.TextArea(label="WhatsApp Chat History", interactive=False, lines=10)
+        
+        with gr.Row():
+            customer_msg = gr.Textbox(label="Customer Message", placeholder="e.g. Change the main color to luxurious gold and add a pricing list...")
+            send_msg_btn = gr.Button("Send Simulated Message", variant="primary")
+            
+        sim_status = gr.Markdown()
+
+        refresh_sim_btn.click(on_refresh_sim_choices, None, [sim_site])
+        sim_site.change(on_load_chat_history, [sim_site], [chat_history])
+        send_msg_btn.click(on_send_sim_message, [sim_site, customer_msg], [chat_history, sim_status])
+
 
 # ---------- Serve: FastAPI (IDE routes) + Gradio ----------------------
 
+from fastapi import Request
+from fastapi.responses import JSONResponse
+
 app = FastAPI(title="Lead → Website Automation")
+
+@app.get("/api/whatsapp/webhook")
+async def verify_whatsapp_webhook(req: Request):
+    params = req.query_params
+    mode = params.get("hub.mode")
+    token = params.get("hub.verify_token")
+    challenge = params.get("hub.challenge")
+    import config
+    if mode == "subscribe" and token == config.WHATSAPP_VERIFY_TOKEN:
+        from fastapi.responses import PlainTextResponse
+        return PlainTextResponse(content=challenge)
+    return JSONResponse({"error": "Verification failed"}, status_code=403)
+
+
+@app.post("/api/whatsapp/webhook")
+async def whatsapp_webhook(req: Request):
+    try:
+        body = await req.json()
+    except Exception:
+        return JSONResponse({"error": "Invalid JSON"}, status_code=400)
+
+    # Ignore status updates, read notifications, etc.
+    entry = body.get("entry", [])
+    if not entry or not entry[0].get("changes"):
+        return JSONResponse({"ok": True, "message": "Ignored status event"})
+        
+    change = entry[0]["changes"][0]["value"]
+    messages = change.get("messages", [])
+    if not messages:
+        return JSONResponse({"ok": True, "message": "No incoming message found"})
+        
+    msg = messages[0]
+    from_phone = msg.get("from") or ""
+    
+    if msg.get("type") != "text" or not msg.get("text"):
+        return JSONResponse({"ok": True, "message": "Non-text message ignored"})
+        
+    message_text = msg["text"].get("body", "").strip()
+    if not message_text:
+        return JSONResponse({"ok": True, "message": "Empty message"})
+
+    # Match phone number with DB leads
+    place_id = None
+    incoming_digits = "".join(filter(str.isdigit, from_phone))
+    for lead in db.all_leads():
+        lead_phone = lead.get("phone") or ""
+        lead_digits = "".join(filter(str.isdigit, lead_phone))
+        if lead_digits and (incoming_digits in lead_digits or lead_digits in incoming_digits):
+            place_id = lead["place_id"]
+            break
+            
+    if not place_id:
+        return JSONResponse({"error": f"Lead with phone {from_phone} not found"}, status_code=404)
+        
+    import whatsapp_agent
+    reply = whatsapp_agent.handle_customer_reply(place_id, message_text)
+    return JSONResponse({"ok": True, "reply": reply})
+
 register_ide_routes(app)              # /ide and /ide/api/* — must be before mount
 app = gr.mount_gradio_app(app, ui, path="/")
 
 
-# The host platform (Render, or Hugging Face's free Gradio SDK) runs this
-# file with `python app.py`, so the __main__ block below starts the server on
-# the port the platform expects. This serves BOTH the Gradio dashboard (/)
-# and the Monaco IDE routes (/ide) on a single server -- no separate process
-# needed. Render sets $PORT dynamically; HF Spaces expects the fixed 7860.
-# Single server for the whole app. We intentionally name the Blocks object `ui`
-# (not `demo`/`app`) so Hugging Face's Gradio auto-launcher does NOT start a
-# second server -- our uvicorn below is the only one.
 if __name__ == "__main__":
     import os
     import uvicorn

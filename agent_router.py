@@ -1,38 +1,22 @@
-"""Client for AgentRouter (agentrouter.org).
+"""Client for AgentRouter with fallback support for direct Anthropic, Gemini,
+and OpenAI APIs.
 
-IMPORTANT -- why this file looks the way it does
-------------------------------------------------
-AgentRouter is a *Claude Code relay*. It only accepts traffic that matches the
-Claude Code "wire image": the native Anthropic Messages API (`/v1/messages`,
-`x-api-key` + `anthropic-version`) sent with a `claude-cli/...` User-Agent.
-
-Any other client fingerprint -- e.g. a generic OpenAI-style call to
-`/chat/completions` -- is rejected with HTTP 401:
-
-    {"type": "unauthorized_client_error",
-     "message": "unauthorized client detected, contact support ..."}
-
-This happens EVEN WHEN THE API KEY IS PERFECTLY VALID. It is a client
-allow-list check, not a bad-key error. (Verified: the same key returns real
-completions the moment the request looks like Claude Code.)
-
-So this module talks to the Anthropic Messages API and sends the Claude Code
-wire-image headers. To avoid touching the rest of the codebase, it still
-*accepts* and *returns* OpenAI-style message objects (system/user/assistant/
-tool roles, `tool_calls`, `tool_call_id`) and translates to/from Anthropic
-format internally.
+If the primary API (AgentRouter) is rate-limited or fails, this module
+automatically falls back to direct API keys configured in .env:
+1. AgentRouter
+2. Anthropic Direct (Claude 3.5 Sonnet)
+3. Google Gemini Direct (Gemini 1.5 Pro / 2.5 Flash)
+4. OpenAI Direct (GPT-4o / GPT-4o-mini / DeepSeek)
 """
 import json
 import time
-
 import requests
-
+import logging
 import config
 
-# ---- Claude Code wire image -----------------------------------------------
-# The User-Agent is the load-bearing part: without a `claude-cli/...` UA the
-# relay returns "unauthorized client detected". The rest mirror what the real
-# Claude Code CLI sends so we stay on the allow-list.
+logger = logging.getLogger(__name__)
+
+# Anthropic wire settings
 _ANTHROPIC_VERSION = "2023-06-01"
 _ANTHROPIC_BETA = "claude-code-20250219,fine-grained-tool-streaming-2025-05-14"
 _USER_AGENT = "claude-cli/1.0.60 (external, cli)"
@@ -42,32 +26,14 @@ class AgentRouterError(RuntimeError):
     pass
 
 
-def _headers():
-    return {
-        "x-api-key": config.AGENTROUTER_API_KEY,
-        "anthropic-version": _ANTHROPIC_VERSION,
-        "anthropic-beta": _ANTHROPIC_BETA,
-        "content-type": "application/json",
-        "User-Agent": _USER_AGENT,
-        "x-app": "cli",
-    }
-
-
-def _endpoint():
-    # base URL already ends in /v1 (e.g. https://agentrouter.org/v1)
-    return config.AGENTROUTER_BASE_URL.rstrip("/") + "/messages"
-
-
-# ---- OpenAI -> Anthropic request translation ------------------------------
+# ---- Helper translations between formats ----
 
 def _tools_to_anthropic(tools):
-    """OpenAI {type:function, function:{name, description, parameters}}
-    -> Anthropic {name, description, input_schema}."""
     if not tools:
         return None
     out = []
     for t in tools:
-        fn = t.get("function", t)  # tolerate either shape
+        fn = t.get("function", t)
         out.append({
             "name": fn["name"],
             "description": fn.get("description", ""),
@@ -77,17 +43,6 @@ def _tools_to_anthropic(tools):
 
 
 def _messages_to_anthropic(messages):
-    """Convert OpenAI-style messages into (system_prompt, anthropic_messages).
-
-    Roles handled:
-      - system   -> pulled out into the top-level `system` string
-      - user     -> user text block
-      - assistant with optional `tool_calls` -> assistant text + tool_use blocks
-      - tool     -> tool_result block (folded into a user message)
-
-    Consecutive tool results are merged into a single user message, as the
-    Anthropic API expects all results for one assistant turn together.
-    """
     system_parts = []
     conv = []
     pending = []
@@ -112,7 +67,7 @@ def _messages_to_anthropic(messages):
             })
             continue
 
-        flush()  # any non-tool message flushes buffered tool results first
+        flush()
 
         if role == "assistant":
             blocks = []
@@ -133,7 +88,7 @@ def _messages_to_anthropic(messages):
             if not blocks:
                 blocks.append({"type": "text", "text": ""})
             conv.append({"role": "assistant", "content": blocks})
-        else:  # user (or unknown) -> treat as user text
+        else:
             content = m.get("content")
             conv.append({"role": "user", "content": content if content is not None else ""})
 
@@ -141,12 +96,7 @@ def _messages_to_anthropic(messages):
     return "\n\n".join(system_parts), conv
 
 
-# ---- Anthropic -> OpenAI response translation -----------------------------
-
 def _anthropic_to_openai_message(data):
-    """Convert an Anthropic response into an OpenAI-style assistant message
-    (`content` string + `tool_calls`), which is what the rest of the code
-    stores and re-sends."""
     text_parts = []
     tool_calls = []
     for block in data.get("content") or []:
@@ -168,17 +118,11 @@ def _anthropic_to_openai_message(data):
     return msg
 
 
-# ---- Public API (unchanged signatures) ------------------------------------
+# ---- Direct API implementations ----
 
-def chat(messages, tools=None, temperature=0.7, max_tokens=8000, timeout=180):
-    """Send a chat request to Opus via AgentRouter's Anthropic endpoint and
-    return an OpenAI-style assistant message (may include `tool_calls`).
-    Retries transient errors."""
-    if not config.AGENTROUTER_API_KEY or not config.AGENTROUTER_BASE_URL:
-        raise AgentRouterError(
-            "AGENTROUTER_BASE_URL / AGENTROUTER_API_KEY are not set. "
-            "Add them to .env (local) or Space secrets (Hugging Face)."
-        )
+def _try_agent_router(messages, tools, temperature, max_tokens, timeout):
+    if not config.AGENTROUTER_API_KEYS or not config.AGENTROUTER_BASE_URL:
+        raise AgentRouterError("AgentRouter not configured.")
 
     system, conv = _messages_to_anthropic(messages)
     payload = {
@@ -193,66 +137,182 @@ def chat(messages, tools=None, temperature=0.7, max_tokens=8000, timeout=180):
     if anthropic_tools:
         payload["tools"] = anthropic_tools
 
-    url = _endpoint()
+    url = config.AGENTROUTER_BASE_URL.rstrip("/") + "/messages"
     last_err = None
-    for attempt in range(4):
+
+    # Rotate through all loaded keys
+    for key in config.AGENTROUTER_API_KEYS:
+        headers = {
+            "x-api-key": key,
+            "anthropic-version": _ANTHROPIC_VERSION,
+            "anthropic-beta": _ANTHROPIC_BETA,
+            "content-type": "application/json",
+            "User-Agent": _USER_AGENT,
+            "x-app": "cli",
+        }
         try:
-            resp = requests.post(url, headers=_headers(), json=payload, timeout=timeout)
+            resp = requests.post(url, headers=headers, json=payload, timeout=timeout)
             if resp.status_code == 200:
                 return _anthropic_to_openai_message(resp.json())
-            if resp.status_code in (429, 500, 502, 503, 504):
-                last_err = "%s: %s" % (resp.status_code, resp.text[:300])
-                time.sleep(2 ** attempt)
-                continue
-            raise AgentRouterError("%s: %s" % (resp.status_code, resp.text[:500]))
-        except requests.RequestException as e:
+            logger.warning(f"AgentRouter key failed ({key[:10]}...): HTTP {resp.status_code} {resp.text[:150]}")
+            last_err = f"HTTP {resp.status_code}: {resp.text[:150]}"
+        except Exception as e:
+            logger.warning(f"AgentRouter key exception ({key[:10]}...): {e}")
             last_err = str(e)
-            time.sleep(2 ** attempt)
+            continue
 
-    raise AgentRouterError("AgentRouter failed after retries: %s" % last_err)
+    raise AgentRouterError(f"All AgentRouter keys exhausted. Last error: {last_err}")
+
+
+def _try_anthropic_direct(messages, tools, temperature, max_tokens, timeout):
+    if not config.ANTHROPIC_API_KEY:
+        raise AgentRouterError("Anthropic direct key not set.")
+
+    system, conv = _messages_to_anthropic(messages)
+    payload = {
+        "model": "claude-3-5-sonnet-20241022",
+        "messages": conv,
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+    }
+    if system:
+        payload["system"] = system
+    anthropic_tools = _tools_to_anthropic(tools)
+    if anthropic_tools:
+        payload["tools"] = anthropic_tools
+
+    headers = {
+        "x-api-key": config.ANTHROPIC_API_KEY,
+        "anthropic-version": _ANTHROPIC_VERSION,
+        "content-type": "application/json",
+    }
+    url = "https://api.anthropic.com/v1/messages"
+    resp = requests.post(url, headers=headers, json=payload, timeout=timeout)
+    if resp.status_code == 200:
+        return _anthropic_to_openai_message(resp.json())
+    raise AgentRouterError(f"Anthropic HTTP {resp.status_code}: {resp.text[:300]}")
+
+
+def _try_gemini_direct(messages, tools, temperature, max_tokens, timeout):
+    if not config.GEMINI_API_KEYS:
+        raise AgentRouterError("Gemini direct keys not set.")
+
+    # Clean OpenAI-compatible messages for Google
+    clean_messages = []
+    for m in messages:
+        role = m.get("role")
+        content = m.get("content") or ""
+        clean_messages.append({"role": role, "content": content})
+
+    payload = {
+        "model": "gemini-1.5-pro",
+        "messages": clean_messages,
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+    }
+    headers = {
+        "Content-Type": "application/json",
+    }
+    
+    last_err = None
+    # Rotate through all loaded keys
+    for key in config.GEMINI_API_KEYS:
+        url = f"https://generativelanguage.googleapis.com/v1beta/openai/chat/completions?key={key}"
+        try:
+            resp = requests.post(url, headers=headers, json=payload, timeout=timeout)
+            if resp.status_code == 200:
+                result = resp.json()
+                choice = result["choices"][0]["message"]
+                return {"role": "assistant", "content": choice.get("content")}
+            logger.warning(f"Gemini key failed ({key[:10]}...): HTTP {resp.status_code} {resp.text[:150]}")
+            last_err = f"HTTP {resp.status_code}: {resp.text[:150]}"
+        except Exception as e:
+            logger.warning(f"Gemini key exception ({key[:10]}...): {e}")
+            last_err = str(e)
+            continue
+
+    raise AgentRouterError(f"All Gemini keys exhausted. Last error: {last_err}")
+
+
+def _try_openai_direct(messages, tools, temperature, max_tokens, timeout):
+    if not config.OPENAI_API_KEY:
+        raise AgentRouterError("OpenAI direct key not set.")
+
+    clean_messages = []
+    for m in messages:
+        role = m.get("role")
+        content = m.get("content") or ""
+        clean_messages.append({"role": role, "content": content})
+
+    payload = {
+        "model": "gpt-4o",
+        "messages": clean_messages,
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+    }
+    headers = {
+        "Authorization": f"Bearer {config.OPENAI_API_KEY}",
+        "Content-Type": "application/json",
+    }
+    url = "https://api.openai.com/v1/chat/completions"
+    resp = requests.post(url, headers=headers, json=payload, timeout=timeout)
+    if resp.status_code == 200:
+        result = resp.json()
+        choice = result["choices"][0]["message"]
+        return {"role": "assistant", "content": choice.get("content")}
+    raise AgentRouterError(f"OpenAI HTTP {resp.status_code}: {resp.text[:300]}")
+
+
+# ---- Public Entrypoint with Failover Router ----
+
+def chat(messages, tools=None, temperature=0.7, max_tokens=8000, timeout=180):
+    """Sends chat request. Retries and fails over across active providers.
+    Prioritizes Gemini Direct (which offers a robust free tier) if the key is present.
+    """
+    providers = []
+    # If Gemini direct key is set, prioritize it for the free tier
+    if config.GEMINI_API_KEY:
+        providers.append(("Gemini Direct", _try_gemini_direct))
+        
+    # Add other providers
+    if config.AGENTROUTER_API_KEY:
+        providers.append(("AgentRouter", _try_agent_router))
+    if config.ANTHROPIC_API_KEY:
+        providers.append(("Anthropic Direct", _try_anthropic_direct))
+    if config.OPENAI_API_KEY:
+        providers.append(("OpenAI Direct", _try_openai_direct))
+
+    # Fallback to check all if none are explicitly matching active flags
+    if not providers:
+        providers = [
+            ("Gemini Direct", _try_gemini_direct),
+            ("AgentRouter", _try_agent_router),
+            ("Anthropic Direct", _try_anthropic_direct),
+            ("OpenAI Direct", _try_openai_direct)
+        ]
+
+    last_error = None
+    for name, method in providers:
+        try:
+            logger.info(f"Attempting API call using {name}...")
+            return method(messages, tools, temperature, max_tokens, timeout)
+        except Exception as e:
+            logger.warning(f"Provider {name} failed: {e}")
+            last_error = str(e)
+            continue
+
+    raise AgentRouterError(f"All AI providers failed. Last error: {last_error}")
 
 
 def chat_text(messages, **kw):
-    """Convenience: return just the assistant's text content."""
     msg = chat(messages, **kw)
     return (msg.get("content") or "").strip()
 
 
 def test_connection():
-    """Send a tiny request to verify base URL + key + wire image actually work.
-    Returns (ok, human-readable message). Never raises."""
-    if not config.AGENTROUTER_BASE_URL or not config.AGENTROUTER_API_KEY:
-        return False, "Base URL or API key is not set in .env / secrets."
-    url = _endpoint()
+    """Verify that at least one provider is responsive."""
     try:
-        resp = requests.post(
-            url,
-            headers=_headers(),
-            json={
-                "model": config.AGENTROUTER_MODEL,
-                "messages": [{"role": "user", "content": "ping"}],
-                "max_tokens": 5,
-            },
-            timeout=30,
-        )
-    except requests.RequestException as e:
-        return False, "Network error reaching %s: %s" % (url, e)
-
-    if resp.status_code == 200:
-        return True, "Connected. Model '%s' responded OK." % config.AGENTROUTER_MODEL
-    if resp.status_code == 401:
-        body = resp.text[:200]
-        if "unauthorized_client" in body or "unauthorized client" in body:
-            return False, (
-                "401 unauthorized_client -- AgentRouter rejected the *client*, "
-                "not the key. The request didn't match the Claude Code wire image "
-                "(endpoint/headers). This should be fixed now; if you still see it, "
-                "an outbound proxy may be stripping the User-Agent header."
-            )
-        return False, (
-            "401 Unauthorized -- the API key is being rejected. Check it is active "
-            "and funded in your AgentRouter dashboard. (URL %s)" % url
-        )
-    if resp.status_code == 404:
-        return False, "404 -- endpoint not found. Check AGENTROUTER_BASE_URL. Body: %s" % resp.text[:160]
-    return False, "HTTP %s: %s" % (resp.status_code, resp.text[:200])
+        reply = chat([{"role": "user", "content": "ping"}], max_tokens=5)
+        return True, f"Connection OK. Response: {reply.get('content') or '(empty)'}"
+    except Exception as e:
+        return False, f"All connections failed: {e}"

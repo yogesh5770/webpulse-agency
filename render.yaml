@@ -15,10 +15,7 @@ services:
         sync: false
       - key: GOOGLE_PLACES_API_KEY
         sync: false
-      # Publishing provider (default: cloudflare). Set NETLIFY_AUTH_TOKEN instead
-      # and change DEPLOY_PROVIDER to "netlify" if you'd rather use Netlify.
-      - key: DEPLOY_PROVIDER
-        value: cloudflare
+      # Generated client sites publish to Cloudflare Pages.
       - key: CLOUDFLARE_API_TOKEN
         sync: false
       - key: CLOUDFLARE_ACCOUNT_ID

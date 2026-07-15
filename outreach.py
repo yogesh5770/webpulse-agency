@@ -31,3 +31,35 @@ def wa_link(lead: dict, message: str) -> str:
     if num:
         return f"https://wa.me/{num}?text={text}"
     return f"https://wa.me/?text={text}"
+
+
+import requests
+import config
+
+def send_whatsapp_message(to_phone: str, text: str) -> dict:
+    """Send a text message directly using the Meta WhatsApp Business Cloud API.
+    Returns the response JSON dict or simulated response if credentials are unset."""
+    if not config.WHATSAPP_ACCESS_TOKEN or not config.WHATSAPP_PHONE_NUMBER_ID:
+        print(f"[WhatsApp Mock Send] to {to_phone}: {text}")
+        return {"mock": True, "status": "simulated"}
+
+    # Clean phone: only digits (Meta API requires digits without + or spaces)
+    clean_phone = _digits(to_phone)
+    
+    url = f"https://graph.facebook.com/v20.0/{config.WHATSAPP_PHONE_NUMBER_ID}/messages"
+    headers = {
+        "Authorization": f"Bearer {config.WHATSAPP_ACCESS_TOKEN}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "messaging_product": "whatsapp",
+        "to": clean_phone,
+        "type": "text",
+        "text": {
+            "body": text
+        }
+    }
+    
+    resp = requests.post(url, headers=headers, json=payload, timeout=30)
+    resp.raise_for_status()
+    return resp.json()

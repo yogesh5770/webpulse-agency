@@ -13,7 +13,7 @@ short_description: Finds leads, builds AI sites, publishes, drafts outreach
 # 🏭 Lead → Website Automation
 
 Runs 24/7: finds local businesses with no website, builds a premium single-file
-site with Opus, publishes it to **Cloudflare Pages** (unlimited free), and drafts
+site with GLM 5.2, publishes it to **Cloudflare Pages** (unlimited free), and drafts
 a WhatsApp outreach message with a one-click wa.me link. Includes a **Cursor-style
 AI IDE** (real Monaco editor) to edit each generated site with an autonomous agent.
 
