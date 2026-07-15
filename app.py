@@ -214,7 +214,32 @@ with gr.Blocks(title="Lead → Website Automation") as ui:
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
+from fastapi.responses import HTMLResponse
+
 app = FastAPI(title="Lead → Website Automation")
+
+@app.get("/privacy", response_class=HTMLResponse)
+async def serve_privacy():
+    return """<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Policy - WebPulse Agency</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 600px; margin: 40px auto; padding: 20px; line-height: 1.6; color: #1e1e2f; background-color: #fafafa; }
+        h1 { border-bottom: 2px solid #eaeaea; padding-bottom: 10px; color: #111; }
+        p { color: #555; }
+    </style>
+</head>
+<body>
+    <h1>Privacy Policy</h1>
+    <p>Last updated: July 15, 2026</p>
+    <p>WebPulse Agency operates the website automation platform. We respect your privacy and only collect or process data necessary to build, deploy, and update business websites on your behalf.</p>
+    <p>We do not share your contact details or business details with external third parties except where required to serve website files (Cloudflare) or process AI decisions (AWS Bedrock).</p>
+</body>
+</html>"""
+
 
 @app.get("/api/whatsapp/webhook")
 async def verify_whatsapp_webhook(req: Request):
