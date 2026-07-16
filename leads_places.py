@@ -33,16 +33,48 @@ def photo_url(photo_ref: str, maxwidth: int = 1200) -> str:
 
 def get_unsplash_images(niche: str, count: int = 5) -> list[str]:
     """Get high-quality, niche-specific images from Unsplash."""
-    if not config.UNSPLASH_ACCESS_KEY:
-        # Fallback curated images
-        fallback = {
-            "salon": ["https://images.unsplash.com/photo-1521791136064-7986c2920216?auto=format&fit=crop&w=1200&q=80"],
-            "bakery": ["https://images.unsplash.com/photo-1549887534-1541e9326642?auto=format&fit=crop&w=1200&q=80"],
-            "restaurant": ["https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=1200&q=80"],
-            "default": ["https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=1200&q=80"]
-        }
-        return fallback.get(niche.lower(), fallback["default"]) * count
-    return []
+    cat = (niche or "business").lower()
+    
+    # Large curated library of high-resolution category images
+    if any(k in cat for k in ["salon", "barber", "parlour", "spa", "hairdresser"]):
+        imgs = [
+            "https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=800&q=80",
+            "https://images.unsplash.com/photo-1521590832167-7bcbfaa6381f?auto=format&fit=crop&w=800&q=80",
+            "https://images.unsplash.com/photo-1621605815971-fbc98d665033?auto=format&fit=crop&w=800&q=80",
+            "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&w=800&q=80"
+        ]
+    elif any(k in cat for k in ["bakery", "cafe", "restaurant", "food"]):
+        imgs = [
+            "https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=800&q=80",
+            "https://images.unsplash.com/photo-1555507036-ab1f4038808a?auto=format&fit=crop&w=800&q=80",
+            "https://images.unsplash.com/photo-1498804103079-a6351b050096?auto=format&fit=crop&w=800&q=80",
+            "https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=800&q=80"
+        ]
+    elif any(k in cat for k in ["gym", "fitness", "workout"]):
+        imgs = [
+            "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?auto=format&fit=crop&w=800&q=80",
+            "https://images.unsplash.com/photo-1517838277536-f5f99be501cd?auto=format&fit=crop&w=800&q=80",
+            "https://images.unsplash.com/photo-1541534741688-6078c6bfb5c5?auto=format&fit=crop&w=800&q=80",
+            "https://images.unsplash.com/photo-1571731979149-75be89323c59?auto=format&fit=crop&w=800&q=80"
+        ]
+    elif any(k in cat for k in ["dentist", "clinic", "medical", "doctor"]):
+        imgs = [
+            "https://images.unsplash.com/photo-1629909613654-28e377c37b09?auto=format&fit=crop&w=800&q=80",
+            "https://images.unsplash.com/photo-1579684389782-64d84b5e902a?auto=format&fit=crop&w=800&q=80",
+            "https://images.unsplash.com/photo-1584824486509-112e4181ff6b?auto=format&fit=crop&w=800&q=80",
+            "https://images.unsplash.com/photo-1516549655169-df83a0774514?auto=format&fit=crop&w=800&q=80"
+        ]
+    else:
+        imgs = [
+            "https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=800&q=80",
+            "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=800&q=80",
+            "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&w=800&q=80",
+            "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=800&q=80"
+        ]
+        
+    random.shuffle(imgs)
+    # Return count items (duplicate/loop if count is larger than len(imgs))
+    return [imgs[i % len(imgs)] for i in range(count)]
 
 
 def get_random_headers() -> Dict[str, str]:

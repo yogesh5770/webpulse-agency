@@ -81,7 +81,16 @@ def generate_site(lead: dict) -> str:
     business_dna = generate_business_dna(business_data)
 
     # Step 3: AI Design Director -> Design DNA
+    import design_memory
+    history = design_memory.get_recent_designs(20)
     design_dna = generate_design_dna(business_dna)
+    
+    for attempt in range(3):
+        if not design_memory.is_too_similar(design_dna, history):
+            break
+        # Force the director to choose a distinct variation
+        business_dna["variation_hint"] = f"Avoid duplicate layouts. Choose a completely different typography, color, and section order than recent sites. Try: {attempt + 1}."
+        design_dna = generate_design_dna(business_dna)
 
     # Step 4: AI Content Generator -> Content
     content = generate_content(business_data, business_dna)
@@ -132,6 +141,17 @@ def generate_site(lead: dict) -> str:
 
     # Step 6: AI Quality Reviewer
     review = review_website(html, business_dna, design_dna, content)
+
+    # Self-Correction Refinement Pass (AI Critic Loop)
+    if review.get("needs_improvement") and review.get("suggestions"):
+        logger.info(f"AI Critic flagged quality improvements: {review.get('suggestions')}")
+        from ai_content_generator import generate_refinement
+        content = generate_refinement(business_data, business_dna, content, review.get("suggestions"))
+        # Re-assemble site
+        config_dict.update(content)
+        html = site_assembler.assemble_site(config_dict)
+        # Re-score
+        review = review_website(html, business_dna, design_dna, content)
 
     # Build memory
     memory = {

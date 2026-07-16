@@ -128,6 +128,7 @@ def assemble_site(config: dict) -> str:
       <img src="{img}" alt="Gallery Item" style="width: 100%; height: 100%; object-fit: cover; transition: transform 0.3s;" onmouseover="this.style.transform='scale({anim_pack['card_hover_scale']})'" onmouseout="this.style.transform='scale(1)'">
     </div>"""
                 gallery_html = gallery_tpl.replace("{{GALLERY_ITEMS}}", items_html)
+                gallery_html = fill_section_placeholders(gallery_html)
                 sections.append(gallery_html)
         elif section_type == "reviews":
             tpl_name = f"components/{component_map['reviews']}.html"
@@ -149,6 +150,7 @@ def assemble_site(config: dict) -> str:
       <div class="font-bold text-xs text-indigo-400 tracking-wider uppercase">— {r.get('author')}</div>
     </div>"""
                 reviews_html = reviews_tpl.replace("{{REVIEWS_CARDS}}", cards_html)
+                reviews_html = fill_section_placeholders(reviews_html)
                 sections.append(reviews_html)
         elif section_type == "contact":
             tpl_name = f"components/{component_map['contact']}.html"

@@ -93,3 +93,22 @@ def generate_content(business_data: dict, business_dna: dict) -> dict:
             "seo_description": f"Check out {name} for the best {category} in town.",
             "seo_keywords": f"{name}, {category}, services"
         }
+
+
+def generate_refinement(business_data: dict, business_dna: dict, old_content: dict, suggestions: list[str]) -> dict:
+    """Run a second pass to refine content copy based on Quality Reviewer suggestions."""
+    prompt = [
+        {"role": "system", "content": SYSTEM_PROMPT + "\n\nCRITICAL: You are running a refinement pass. The previous content had issues. Please read the suggestions and return updated content JSON fixing the issues while keeping correct formatting."},
+        {"role": "user", "content": json.dumps({
+            "business_data": business_data,
+            "business_dna": business_dna,
+            "previous_content": old_content,
+            "quality_feedback_suggestions": suggestions
+        }, indent=2)}
+    ]
+    try:
+        response = _strip_fences(chat_text(prompt, temperature=0.5, max_tokens=1500))
+        return json.loads(response)
+    except Exception as e:
+        logger.warning(f"Failed to refine content: {e}. Returning original.")
+        return old_content
