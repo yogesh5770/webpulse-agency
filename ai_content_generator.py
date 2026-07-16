@@ -14,24 +14,44 @@ def _strip_fences(text: str) -> str:
     return text.strip()
 
 
-SYSTEM_PROMPT = """You are an elite Copywriter and Content Strategist. Your job is to write unique, business-specific website content based on Business DNA and Design DNA.
+SYSTEM_PROMPT = """You are an elite Copywriter and Content Strategist. Your job is to write unique, highly specific, premium website content tailored to the exact category of the business. 
+Do not output placeholders or key names as list items. Write real items (e.g. if the category is bakery, output real bakery items like 'Croissant', 'Sourdough', etc.).
 
 Return only valid JSON with NO extra text.
 
-Generate content with these fields:
-- hero_title: str - catchy, premium title tailored to the business (3-10 words)
-- hero_subtitle: str - brief, engaging description (15-30 words)
-- hero_cta_primary: str - clear call-to-action (e.g., "Book Now", "Contact Us", "Get Started")
-- about_title: str - "About [Business Name]"
-- about_description: str - detailed, authentic description (150-250 words)
-- about_xp_years: int - number of years experience (use 5 if unknown)
-- services_title: str - "Our Services" or similar
-- services_subtitle: str - brief intro to services
-- services: list[dict] - 3-5 services with title, description, price
-- reviews: list[dict] - 2-3 realistic reviews with author, text, rating (1-5)
-- seo_title: str - "[Business Name] | [Category] in [Location]"
-- seo_description: str - 150-160 character SEO description
-- seo_keywords: str - comma-separated keywords
+You MUST match this exact JSON schema:
+{
+  "hero_title": "Catchy business headline (3-10 words)",
+  "hero_subtitle": "Engaging business details (15-30 words)",
+  "hero_cta_primary": "Call to action text",
+  "about_title": "About [Business Name]",
+  "about_description": "A authentic company narrative (150-250 words)",
+  "about_xp_years": 8,
+  "services_title": "Our Specialties",
+  "services_subtitle": "Short intro text explaining the services",
+  "services": [
+    {
+      "title": "Real service/product title (e.g. 'Fresh Sourdough Bread')",
+      "description": "Engaging description of this specific item",
+      "price": "₹120"
+    },
+    {
+      "title": "Another service/product title (e.g. 'Butter Croissant')",
+      "description": "Engaging description of this specific item",
+      "price": "₹80"
+    }
+  ],
+  "reviews": [
+    {
+      "author": "Customer Name",
+      "text": "Highly realistic review highlighting specific services",
+      "rating": 5
+    }
+  ],
+  "seo_title": "[Business Name] | [Category] in [Location]",
+  "seo_description": "150-160 character description",
+  "seo_keywords": "comma-separated keywords"
+}
 """
 
 
