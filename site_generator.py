@@ -77,8 +77,20 @@ def generate_site(lead: dict) -> str:
         "details": details
     }
 
+    category = (lead.get("category") or "business").lower()
+    theme_choice = "dark"
+    if any(k in category for k in ["salon", "barber", "parlour", "spa"]):
+        theme_choice = "creative"
+    elif any(k in category for k in ["bakery", "cafe", "restaurant"]):
+        theme_choice = "restaurant"
+    elif any(k in category for k in ["dentist", "clinic", "medical"]):
+        theme_choice = "medical"
+    elif any(k in category for k in ["gym", "fitness"]):
+        theme_choice = "startup"
+
     # Step 2: AI Business Brain -> Business DNA
     business_dna = generate_business_dna(business_data)
+    business_dna["recommended_theme"] = theme_choice
 
     # Step 3: AI Design Director -> Design DNA
     import design_memory
