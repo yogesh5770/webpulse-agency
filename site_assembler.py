@@ -99,10 +99,10 @@ def assemble_site(config: dict) -> str:
                         continue
                         
                     cards_html += f"""
-    <div class="card p-8 bg-slate-900/40 backdrop-blur-md border border-slate-800/80 rounded-2xl hover:border-indigo-500/40 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-indigo-500/5">
+    <div class="card p-8 bg-[var(--card-bg)] backdrop-blur-md border border-[var(--border)] rounded-2xl hover:border-indigo-500/40 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-indigo-500/5">
       <h3 class="text-xl font-bold text-indigo-400 mb-3">{title}</h3>
       <p class="text-slate-400 text-sm mb-6 leading-relaxed min-h-[50px]">{desc}</p>
-      <div class="flex justify-between items-center border-t border-slate-800/80 pt-4">
+      <div class="flex justify-between items-center border-t border-[var(--border)] pt-4">
         <span class="font-extrabold text-lg text-white">{price}</span>
         <a href="https://wa.me/{config.get('whatsapp_number')}" target="_blank" class="text-sm font-semibold text-indigo-400 hover:text-indigo-300 transition-colors flex items-center gap-1">Book Now <span class="text-xs">→</span></a>
       </div>
@@ -144,7 +144,7 @@ def assemble_site(config: dict) -> str:
                 for r in reviews_list:
                     stars = "★" * int(r.get("rating") or 5)
                     cards_html += f"""
-    <div class="card p-8 bg-slate-900/40 backdrop-blur-md border border-slate-800/80 rounded-2xl hover:border-indigo-500/40 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-indigo-500/5">
+    <div class="card p-8 bg-[var(--card-bg)] backdrop-blur-md border border-[var(--border)] rounded-2xl hover:border-indigo-500/40 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-indigo-500/5">
       <div class="text-amber-400 text-lg mb-3">{stars}</div>
       <p class="text-slate-300 italic text-sm mb-6 leading-relaxed">"{r.get('text')}"</p>
       <div class="font-bold text-xs text-indigo-400 tracking-wider uppercase">— {r.get('author')}</div>
